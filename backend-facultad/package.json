@@ -4,7 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "dev": "node index.js",
+    "start": "node index.js",
+    "seed": "node prisma/seed.js",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "keywords": [],
   "author": "",
@@ -20,7 +26,10 @@
   "allowScripts": {
     "esbuild@0.28.2": true,
     "msgpackr-extract@3.0.4": true,
-    "workerd@1.20260704.1": true
+    "workerd@1.20260704.1": true,
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "prisma@5.22.0": true
   },
   "devDependencies": {
     "@prisma/client": "^5.22.0",

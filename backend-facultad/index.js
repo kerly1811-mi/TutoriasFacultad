@@ -12,17 +12,23 @@ app.use(cors());
 app.use(express.json());
 
 const authRoutes = require('./routes/auth');
+const usuariosRoutes = require('./routes/usuarios');
 const espaciosRoutes = require('./routes/espacios');
+const horariosRoutes = require('./routes/horarios');
+const disponibilidadRoutes = require('./routes/disponibilidad');
 const reservasRoutes = require('./routes/reservas');
+const tutoriasRoutes = require('./routes/tutorias');
 const asistenciasRoutes = require('./routes/asistencias');
 const documentosRoutes = require('./routes/documentos');
 
 app.use('/api/documentos', documentosRoutes);
 app.use('/api/asistencias', asistenciasRoutes);
-
+app.use('/api/tutorias', tutoriasRoutes);
+app.use('/api/disponibilidad', disponibilidadRoutes);
+app.use('/api/horarios', horariosRoutes);
 app.use('/api/reservas', reservasRoutes);
-
 app.use('/api/espacios', espaciosRoutes);
+app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/auth', authRoutes);
 
 app.get('/api/status/',async (req,res) =>{

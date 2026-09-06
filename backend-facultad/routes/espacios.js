@@ -5,20 +5,28 @@ const { verificarToken, verificarRol } = require('../middlewares/authMiddleware'
 const router = express.Router();
 const prisma = new PrismaClient();
 
+const TIPOS = ['AULA', 'LABORATORIO'];
+const ESTADOS = ['DISPONIBLE', 'MANTENIMIENTO'];
+
 // ==========================================
-// CREAR UN ESPACIO (SOLO ADMINISTRADORES)
+// CREAR ESPACIO (SOLO ADMINISTRADORES)
 // ==========================================
 router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
-  const { nom_esp, tipo, capacidad, ubicacion } = req.body;
+  const { nom_esp, tipo, capacidad, ubicacion, estado } = req.body;
+
+  if (!nom_esp || !TIPOS.includes(tipo) || !capacidad) {
+    return res.status(400).json({ error: 'Datos del espacio incompletos o inválidos.' });
+  }
 
   try {
     const nuevoEspacio = await prisma.espacio.create({
       data: {
         nom_esp,
-        tipo, // Debe ser "AULA" o "LABORATORIO"
-        capacidad,
-        ubicacion
-      }
+        tipo,
+        capacidad: Number(capacidad),
+        ubicacion: ubicacion || null,
+        estado: ESTADOS.includes(estado) ? estado : 'DISPONIBLE',
+      },
     });
     res.status(201).json({ mensaje: 'Espacio creado exitosamente', espacio: nuevoEspacio });
   } catch (error) {
@@ -32,10 +40,69 @@ router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, re
 // ==========================================
 router.get('/', verificarToken, async (req, res) => {
   try {
-    const espacios = await prisma.espacio.findMany();
+    const espacios = await prisma.espacio.findMany({ orderBy: { nom_esp: 'asc' } });
     res.json(espacios);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error al obtener los espacios.' });
+  }
+});
+
+// ==========================================
+// EDITAR ESPACIO / ESTADO / MANTENIMIENTO (SOLO ADMINISTRADORES)
+// ==========================================
+router.put('/:id', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
+  const id_esp = Number(req.params.id);
+  const { nom_esp, tipo, capacidad, ubicacion, estado } = req.body;
+
+  if (tipo !== undefined && !TIPOS.includes(tipo)) {
+    return res.status(400).json({ error: 'Tipo de espacio inválido.' });
+  }
+  if (estado !== undefined && !ESTADOS.includes(estado)) {
+    return res.status(400).json({ error: 'Estado de espacio inválido.' });
+  }
+
+  try {
+    const actualizado = await prisma.espacio.update({
+      where: { id_esp },
+      data: {
+        ...(nom_esp !== undefined && { nom_esp }),
+        ...(tipo !== undefined && { tipo }),
+        ...(capacidad !== undefined && { capacidad: Number(capacidad) }),
+        ...(ubicacion !== undefined && { ubicacion: ubicacion || null }),
+        ...(estado !== undefined && { estado }),
+      },
+    });
+    res.json({ mensaje: 'Espacio actualizado', espacio: actualizado });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Espacio no encontrado.' });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Error al actualizar el espacio.' });
+  }
+});
+
+// ==========================================
+// ELIMINAR ESPACIO (SOLO ADMINISTRADORES)
+// ==========================================
+router.delete('/:id', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
+  const id_esp = Number(req.params.id);
+
+  try {
+    await prisma.espacio.delete({ where: { id_esp } });
+    res.json({ mensaje: 'Espacio eliminado' });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Espacio no encontrado.' });
+    }
+    if (error.code === 'P2003') {
+      return res
+        .status(409)
+        .json({ error: 'No se puede eliminar: el espacio tiene reservas u horarios asociados.' });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Error al eliminar el espacio.' });
   }
 });
 

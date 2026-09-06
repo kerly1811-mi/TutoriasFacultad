@@ -10,7 +10,11 @@ const prisma = new PrismaClient();
 // REGISTRO DE USUARIO
 // ==========================================
 router.post('/registro', async (req, res) => {
-  const { cedula, nombres, apellidos, correo, password, rol } = req.body;
+  // El registro público SIEMPRE crea estudiantes. Cualquier `rol` que llegue en
+  // el body se ignora. Docentes, laboratoristas y administradores los da de alta
+  // un administrador desde POST /api/usuarios.
+  const { cedula, nombres, apellidos, correo, password } = req.body;
+  const rol = 'ESTUDIANTE';
 
   try {
     // 1. Verificar si el usuario ya existe (por cédula o correo)
