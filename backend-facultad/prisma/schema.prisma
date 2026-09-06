@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RolUsuario {
+  ADMINISTRADOR
+  DOCENTE
+  ESTUDIANTE
+  LABORATORISTA
+}
+
+enum TipoEspacio {
+  AULA
+  LABORATORIO
+}
+
+enum EstadoReserva {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+}
+
+model Usuario {
+  id_usr       Int        @id @default(autoincrement())
+  cedula       String     @unique @db.VarChar(10)
+  nombres      String     @db.VarChar(100)
+  apellidos    String     @db.VarChar(100)
+  correo       String     @unique @db.VarChar(100)
+  password     String     // Requerido para autenticación JWT/Firebase Auth
+  rol          RolUsuario
+
+  // Relaciones
+  matriculas         Matricula[]
+  paralelos_docente  Paralelo[]
+  reservas_solicitadas Reserva[] @relation("SolicitanteReserva")
+  reservas_asignadas   Reserva[] @relation("DocenteReserva")
+  asistencias        Asistencia[]
+}
+
+model Espacio {
+  id_esp     Int         @id @default(autoincrement())
+  nom_esp    String      @db.VarChar(100)
+  tipo       TipoEspacio
+  capacidad  Int
+  ubicacion  String?     @db.VarChar(100)
+
+  reservas   Reserva[]
+}
+
+model Carrera {
+  id_car   Int     @id @default(autoincrement())
+  nom_car  String  @db.VarChar(150)
+
+  niveles  Nivel[]
+}
+
+model Nivel {
+  id_niv   Int     @id @default(autoincrement())
+  nom_niv  String  @db.VarChar(50)
+  id_car   Int
+
+  carrera  Carrera @relation(fields: [id_car], references: [id_car])
+  materias Materia[]
+}
+
+model Materia {
+  id_mat   Int     @id @default(autoincrement())
+  nom_mat  String  @db.VarChar(150)
+  id_niv   Int
+
+  nivel    Nivel   @relation(fields: [id_niv], references: [id_niv])
+  paralelos Paralelo[]
+}
+
+model Paralelo {
+  id_par   Int     @id @default(autoincrement())
+  nom_par  String  @db.VarChar(10)
+  id_mat   Int
+  id_doc   Int
+
+  materia  Materia @relation(fields: [id_mat], references: [id_mat])
+  docente  Usuario @relation(fields: [id_doc], references: [id_usr])
+  matriculas Matricula[]
+}
+
+model Matricula {
+  id_matricula Int @id @default(autoincrement())
+  id_est       Int
+  id_par       Int
+
+  estudiante   Usuario  @relation(fields: [id_est], references: [id_usr])
+  paralelo     Paralelo @relation(fields: [id_par], references: [id_par])
+
+  @@unique([id_est, id_par])
+}
+
+model Reserva {
+  id_rev             Int           @id @default(autoincrement())
+  id_esp             Int
+  id_usr_solicitante Int
+  id_doc_asignado    Int?
+  fecha              DateTime      @db.Date
+  hor_ini            DateTime      @db.Time
+  hor_fin            DateTime      @db.Time
+  estado             EstadoReserva @default(PENDIENTE)
+  motivo             String?       @db.Text
+  qr_token           String?       @unique @db.VarChar(255) 
+
+  espacio            Espacio       @relation(fields: [id_esp], references: [id_esp])
+  solicitante        Usuario       @relation("SolicitanteReserva", fields: [id_usr_solicitante], references: [id_usr])
+  docente_asignado   Usuario?      @relation("DocenteReserva", fields: [id_doc_asignado], references: [id_usr])
+  
+  asistencias        Asistencia[]
+  documentos         Documento[]
+}
+
+model Asistencia {
+  id_asi         Int      @id @default(autoincrement())
+  id_rev         Int
+  id_est         Int
+  hora_registro  DateTime @default(now())
+  validado_qr    Boolean  @default(true)
+
+  reserva        Reserva  @relation(fields: [id_rev], references: [id_rev])
+  estudiante     Usuario  @relation(fields: [id_est], references: [id_usr])
+
+  @@unique([id_rev, id_est]) 
+}
+
+model Documento {
+  id_docu      Int      @id @default(autoincrement())
+  id_rev       Int
+  url_archivo  String   @db.Text
+  nom_archivo  String   @db.VarChar(255)
+  fecha_subida DateTime @default(now())
+
+  reserva      Reserva  @relation(fields: [id_rev], references: [id_rev])
+}
