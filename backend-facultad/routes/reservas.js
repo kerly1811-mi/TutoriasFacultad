@@ -10,6 +10,7 @@ const prisma = new PrismaClient();
 const incluir = {
   espacio: { select: { nom_esp: true, tipo: true } },
   solicitante: { select: { id_usr: true, nombres: true, apellidos: true } },
+  curso: { select: { id_cur: true, nom_cur: true } },
 };
 
 // ==========================================
@@ -19,7 +20,7 @@ const incluir = {
 // ==========================================
 router.post('/', verificarToken, verificarRol(['DOCENTE']), async (req, res) => {
   const id_usr_solicitante = req.usuario.id;
-  const { id_esp, fecha, hor_ini, hor_fin, motivo } = req.body;
+  const { id_esp, fecha, hor_ini, hor_fin, motivo, id_cur } = req.body;
 
   if (!id_esp || !fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
     return res.status(400).json({ error: 'Faltan datos de la reserva (espacio y fecha).' });
@@ -43,6 +44,13 @@ router.post('/', verificarToken, verificarRol(['DOCENTE']), async (req, res) => 
     if (!espacio) return res.status(404).json({ error: 'El aula no existe.' });
     if (espacio.estado === 'MANTENIMIENTO') {
       return res.status(409).json({ error: 'El aula está en mantenimiento.' });
+    }
+
+    if (id_cur) {
+      const curso = await prisma.curso.findUnique({ where: { id_cur: Number(id_cur) } });
+      if (!curso || curso.id_doc !== id_usr_solicitante) {
+        return res.status(400).json({ error: 'El curso indicado no existe o no te pertenece.' });
+      }
     }
 
     // 1) ¿Choca con una clase regular de ese día?
@@ -69,6 +77,7 @@ router.post('/', verificarToken, verificarRol(['DOCENTE']), async (req, res) => 
         hor_ini: aHoraUTC(hIniTxt),
         hor_fin: aHoraUTC(hFinTxt),
         motivo: motivo || null,
+        id_cur: id_cur ? Number(id_cur) : null,
         qr_token: crypto.randomUUID(), // lo usará la app móvil para generar el QR
         estado: 'RESERVADA',
       },
@@ -105,19 +114,25 @@ router.get('/', verificarToken, async (req, res) => {
 // ==========================================
 router.patch('/:id/cancelar', verificarToken, async (req, res) => {
   const id_rev = Number(req.params.id);
+  const { motivo } = req.body;
+
+  if (!motivo || !motivo.trim()) {
+    return res.status(400).json({ error: 'Debes indicar un motivo de cancelación.' });
+  }
+
   try {
     const reserva = await prisma.reserva.findUnique({ where: { id_rev } });
     if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada.' });
 
     const esDueno = reserva.id_usr_solicitante === req.usuario.id;
-    const esAdmin = req.usuario.rol === 'ADMINISTRADOR';
-    if (!esDueno && !esAdmin) {
+    const puedeCancelarCualquiera = ['ADMINISTRADOR', 'LABORATORISTA'].includes(req.usuario.rol);
+    if (!esDueno && !puedeCancelarCualquiera) {
       return res.status(403).json({ error: 'No puedes cancelar esta reserva.' });
     }
 
     const actualizada = await prisma.reserva.update({
       where: { id_rev },
-      data: { estado: 'CANCELADA' },
+      data: { estado: 'CANCELADA', motivo_cancelacion: motivo.trim() },
       include: incluir,
     });
     res.json({ mensaje: 'Reserva cancelada', reserva: actualizada });

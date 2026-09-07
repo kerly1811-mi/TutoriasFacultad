@@ -35,7 +35,7 @@ model Usuario {
 
   // Relaciones
   matriculas           Matricula[]
-  paralelos_docente    Paralelo[]
+  cursos_docente       Curso[]
   reservas_solicitadas Reserva[]      @relation("SolicitanteReserva")
   reservas_asignadas   Reserva[]      @relation("DocenteReserva")
   asistencias          Asistencia[]
@@ -70,51 +70,29 @@ model HorarioClase {
   docente Usuario? @relation("DocenteHorario", fields: [id_doc], references: [id_usr])
 }
 
-model Carrera {
-  id_car  Int    @id @default(autoincrement())
-  nom_car String @db.VarChar(150)
-
-  niveles Nivel[]
-}
-
-model Nivel {
-  id_niv  Int    @id @default(autoincrement())
-  nom_niv String @db.VarChar(50)
-  id_car  Int
-
-  carrera  Carrera   @relation(fields: [id_car], references: [id_car])
-  materias Materia[]
-}
-
-model Materia {
-  id_mat  Int    @id @default(autoincrement())
-  nom_mat String @db.VarChar(150)
-  id_niv  Int
-
-  nivel     Nivel      @relation(fields: [id_niv], references: [id_niv])
-  paralelos Paralelo[]
-}
-
-model Paralelo {
-  id_par  Int    @id @default(autoincrement())
-  nom_par String @db.VarChar(10)
-  id_mat  Int
+// Curso dictado por un docente (ej. "Física B"). Reemplaza la cadena
+// Carrera -> Nivel -> Materia -> Paralelo, que no se usaba.
+model Curso {
+  id_cur  Int    @id @default(autoincrement())
+  nom_cur String @db.VarChar(150)
   id_doc  Int
 
-  materia    Materia     @relation(fields: [id_mat], references: [id_mat])
   docente    Usuario     @relation(fields: [id_doc], references: [id_usr])
   matriculas Matricula[]
+  reservas   Reserva[]
 }
 
+// Matrícula de un estudiante en un curso (relación muchos-a-muchos).
+// Determina qué tutorías (reservas) le aparecen a cada estudiante.
 model Matricula {
   id_matricula Int @id @default(autoincrement())
   id_est       Int
-  id_par       Int
+  id_cur       Int
 
-  estudiante Usuario  @relation(fields: [id_est], references: [id_usr])
-  paralelo   Paralelo @relation(fields: [id_par], references: [id_par])
+  estudiante Usuario @relation(fields: [id_est], references: [id_usr])
+  curso      Curso   @relation(fields: [id_cur], references: [id_cur])
 
-  @@unique([id_est, id_par])
+  @@unique([id_est, id_cur])
 }
 
 model Reserva {
@@ -122,16 +100,19 @@ model Reserva {
   id_esp             Int
   id_usr_solicitante Int
   id_doc_asignado    Int? // Se conserva por compatibilidad; ya no se usa (el docente que reserva es el tutor)
+  id_cur             Int? // Curso al que pertenece esta tutoría (opcional). Filtra qué ven los estudiantes matriculados.
   fecha              DateTime @db.Date
   hor_ini            DateTime @db.Time
   hor_fin            DateTime @db.Time
   estado             String   @default("RESERVADA") @db.VarChar(20) // RESERVADA | CANCELADA
   motivo             String?  @db.Text
+  motivo_cancelacion String?  @db.Text
   qr_token           String?  @unique @db.VarChar(255)
 
   espacio          Espacio @relation(fields: [id_esp], references: [id_esp])
   solicitante      Usuario @relation("SolicitanteReserva", fields: [id_usr_solicitante], references: [id_usr])
   docente_asignado Usuario? @relation("DocenteReserva", fields: [id_doc_asignado], references: [id_usr])
+  curso            Curso?  @relation(fields: [id_cur], references: [id_cur])
 
   asistencias Asistencia[]
   documentos  Documento[]

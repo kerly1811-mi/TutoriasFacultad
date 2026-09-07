@@ -20,8 +20,12 @@ const reservasRoutes = require('./routes/reservas');
 const tutoriasRoutes = require('./routes/tutorias');
 const asistenciasRoutes = require('./routes/asistencias');
 const documentosRoutes = require('./routes/documentos');
+const cursosRoutes = require('./routes/cursos');
+const matriculasRoutes = require('./routes/matriculas');
 
 app.use('/api/documentos', documentosRoutes);
+app.use('/api/cursos', cursosRoutes);
+app.use('/api/matriculas', matriculasRoutes);
 app.use('/api/asistencias', asistenciasRoutes);
 app.use('/api/tutorias', tutoriasRoutes);
 app.use('/api/disponibilidad', disponibilidadRoutes);
