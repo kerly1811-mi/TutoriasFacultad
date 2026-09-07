@@ -19,6 +19,11 @@ enum TipoEspacio {
   LABORATORIO
 }
 
+enum BloqueEspacio {
+  BLOQUE_1
+  BLOQUE_2
+}
+
 model Usuario {
   id_usr       Int        @id @default(autoincrement())
   cedula       String     @unique @db.VarChar(10)
@@ -38,12 +43,13 @@ model Usuario {
 }
 
 model Espacio {
-  id_esp    Int         @id @default(autoincrement())
-  nom_esp   String      @db.VarChar(100)
+  id_esp    Int           @id @default(autoincrement())
+  nom_esp   String        @db.VarChar(100)
   tipo      TipoEspacio
   capacidad Int
-  ubicacion String?     @db.VarChar(100)
-  estado    String      @default("DISPONIBLE") @db.VarChar(20) // DISPONIBLE | MANTENIMIENTO
+  bloque    BloqueEspacio?
+  piso      String?       @db.VarChar(5) // BLOQUE_1: "1".."3" | BLOQUE_2: "C".."J"
+  estado    String        @default("DISPONIBLE") @db.VarChar(20) // DISPONIBLE | MANTENIMIENTO
 
   reservas Reserva[]
   horarios HorarioClase[]

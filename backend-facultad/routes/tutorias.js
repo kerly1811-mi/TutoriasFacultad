@@ -16,7 +16,7 @@ router.get('/', verificarToken, async (req, res) => {
     const reservas = await prisma.reserva.findMany({
       where: { estado: 'RESERVADA', fecha: { gte: hoy } },
       include: {
-        espacio: { select: { nom_esp: true, tipo: true, ubicacion: true } },
+        espacio: { select: { nom_esp: true, tipo: true, bloque: true, piso: true } },
         solicitante: { select: { nombres: true, apellidos: true } },
       },
       orderBy: [{ fecha: 'asc' }, { hor_ini: 'asc' }],
@@ -26,7 +26,8 @@ router.get('/', verificarToken, async (req, res) => {
       id_rev: r.id_rev,
       aula: r.espacio?.nom_esp || '—',
       tipo: r.espacio?.tipo || null,
-      ubicacion: r.espacio?.ubicacion || null,
+      bloque: r.espacio?.bloque || null,
+      piso: r.espacio?.piso || null,
       fecha: r.fecha,
       hora_ini: fmt(r.hor_ini),
       hora_fin: fmt(r.hor_fin),

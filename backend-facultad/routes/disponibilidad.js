@@ -72,7 +72,8 @@ router.get('/', verificarToken, async (req, res) => {
         nom_esp: esp.nom_esp,
         tipo: esp.tipo,
         capacidad: esp.capacidad,
-        ubicacion: esp.ubicacion,
+        bloque: esp.bloque,
+        piso: esp.piso,
         libre,
         ocupaciones: ocupaciones.map(({ ini, fin, ...resto }) => resto),
       };
