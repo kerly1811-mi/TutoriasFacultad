@@ -13,27 +13,27 @@ router.get('/', verificarToken, async (req, res) => {
   const hoy = new Date(new Date().toISOString().slice(0, 10));
 
   try {
-    let idsCursos = null; // null = sin restricción (cualquier rol distinto de ESTUDIANTE)
+    let idsParalelos = null; // null = sin restricción (cualquier rol distinto de ESTUDIANTE)
     if (req.usuario.rol === 'ESTUDIANTE') {
       const matriculas = await prisma.matricula.findMany({
         where: { id_est: req.usuario.id },
-        select: { id_cur: true },
+        select: { id_par: true },
       });
-      idsCursos = matriculas.map((m) => m.id_cur);
-      // Un estudiante sin cursos no debe ver ninguna tutoría (ni las que no tienen curso asignado).
-      if (idsCursos.length === 0) return res.json([]);
+      idsParalelos = matriculas.map((m) => m.id_par);
+      // Un estudiante sin paralelos no debe ver ninguna tutoría (ni las que no tienen paralelo asignado).
+      if (idsParalelos.length === 0) return res.json([]);
     }
 
     const reservas = await prisma.reserva.findMany({
       where: {
         estado: 'RESERVADA',
         fecha: { gte: hoy },
-        ...(idsCursos && { id_cur: { in: idsCursos } }),
+        ...(idsParalelos && { id_par: { in: idsParalelos } }),
       },
       include: {
         espacio: { select: { nom_esp: true, tipo: true, bloque: true, piso: true } },
         solicitante: { select: { nombres: true, apellidos: true } },
-        curso: { select: { nom_cur: true } },
+        paralelo: { select: { nom_par: true, materia: { select: { nom_mat: true } } } },
       },
       orderBy: [{ fecha: 'asc' }, { hor_ini: 'asc' }],
     });
@@ -48,7 +48,7 @@ router.get('/', verificarToken, async (req, res) => {
       hora_ini: fmt(r.hor_ini),
       hora_fin: fmt(r.hor_fin),
       docente: r.solicitante ? `${r.solicitante.nombres} ${r.solicitante.apellidos}` : 'Docente',
-      curso: r.curso?.nom_cur || null,
+      curso: r.paralelo ? `${r.paralelo.materia?.nom_mat || ''} · Paralelo ${r.paralelo.nom_par}` : null,
       tema: r.motivo || 'Tutoría',
     }));
 

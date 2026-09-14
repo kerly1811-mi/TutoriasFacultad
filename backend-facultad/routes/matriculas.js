@@ -5,14 +5,19 @@ const { verificarToken, verificarRol } = require('../middlewares/authMiddleware'
 const router = express.Router();
 const prisma = new PrismaClient();
 
+const incluirParalelo = {
+  materia: { select: { nom_mat: true } },
+  nivel: { select: { nom_niv: true, carrera: { select: { nom_car: true } } } },
+};
+
 // ==========================================
-// MATRICULAR ESTUDIANTE EN UN CURSO (SOLO ADMINISTRADORES)
+// MATRICULAR ESTUDIANTE EN UN PARALELO (SOLO ADMINISTRADORES)
 // ==========================================
 router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
-  const { id_est, id_cur } = req.body;
+  const { id_est, id_par } = req.body;
 
-  if (!id_est || !id_cur) {
-    return res.status(400).json({ error: 'Faltan datos (estudiante y curso).' });
+  if (!id_est || !id_par) {
+    return res.status(400).json({ error: 'Faltan datos (estudiante y paralelo).' });
   }
 
   try {
@@ -21,22 +26,22 @@ router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, re
       return res.status(400).json({ error: 'El usuario indicado no existe o no tiene rol ESTUDIANTE.' });
     }
 
-    const curso = await prisma.curso.findUnique({ where: { id_cur: Number(id_cur) } });
-    if (!curso) {
-      return res.status(404).json({ error: 'Curso no encontrado.' });
+    const paralelo = await prisma.paralelo.findUnique({ where: { id_par: Number(id_par) } });
+    if (!paralelo) {
+      return res.status(404).json({ error: 'Paralelo no encontrado.' });
     }
 
     const nueva = await prisma.matricula.create({
-      data: { id_est: Number(id_est), id_cur: Number(id_cur) },
+      data: { id_est: Number(id_est), id_par: Number(id_par) },
       include: {
         estudiante: { select: { nombres: true, apellidos: true } },
-        curso: { select: { nom_cur: true } },
+        paralelo: { include: incluirParalelo },
       },
     });
     res.status(201).json({ mensaje: 'Estudiante matriculado exitosamente', matricula: nueva });
   } catch (error) {
     if (error.code === 'P2002') {
-      return res.status(409).json({ error: 'El estudiante ya está matriculado en este curso.' });
+      return res.status(409).json({ error: 'El estudiante ya está matriculado en este paralelo.' });
     }
     console.error(error);
     res.status(500).json({ error: 'Error al matricular al estudiante.' });
@@ -44,20 +49,20 @@ router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, re
 });
 
 // ==========================================
-// LISTAR MATRÍCULAS (SOLO ADMINISTRADORES)  ?id_cur=  ?id_est=
+// LISTAR MATRÍCULAS (SOLO ADMINISTRADORES)  ?id_par=  ?id_est=
 // ==========================================
 router.get('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
-  const { id_cur, id_est } = req.query;
+  const { id_par, id_est } = req.query;
 
   try {
     const matriculas = await prisma.matricula.findMany({
       where: {
-        ...(id_cur && { id_cur: Number(id_cur) }),
+        ...(id_par && { id_par: Number(id_par) }),
         ...(id_est && { id_est: Number(id_est) }),
       },
       include: {
         estudiante: { select: { id_usr: true, nombres: true, apellidos: true, cedula: true } },
-        curso: { select: { id_cur: true, nom_cur: true } },
+        paralelo: { include: incluirParalelo },
       },
       orderBy: { id_matricula: 'desc' },
     });

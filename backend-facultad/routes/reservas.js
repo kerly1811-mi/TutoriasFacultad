@@ -10,7 +10,14 @@ const prisma = new PrismaClient();
 const incluir = {
   espacio: { select: { nom_esp: true, tipo: true } },
   solicitante: { select: { id_usr: true, nombres: true, apellidos: true } },
-  curso: { select: { id_cur: true, nom_cur: true } },
+  paralelo: {
+    select: {
+      id_par: true,
+      nom_par: true,
+      materia: { select: { nom_mat: true } },
+      nivel: { select: { nom_niv: true, carrera: { select: { nom_car: true } } } },
+    },
+  },
 };
 
 // ==========================================
@@ -20,7 +27,7 @@ const incluir = {
 // ==========================================
 router.post('/', verificarToken, verificarRol(['DOCENTE']), async (req, res) => {
   const id_usr_solicitante = req.usuario.id;
-  const { id_esp, fecha, hor_ini, hor_fin, motivo, id_cur } = req.body;
+  const { id_esp, fecha, hor_ini, hor_fin, motivo, id_par } = req.body;
 
   if (!id_esp || !fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
     return res.status(400).json({ error: 'Faltan datos de la reserva (espacio y fecha).' });
@@ -46,10 +53,10 @@ router.post('/', verificarToken, verificarRol(['DOCENTE']), async (req, res) => 
       return res.status(409).json({ error: 'El aula está en mantenimiento.' });
     }
 
-    if (id_cur) {
-      const curso = await prisma.curso.findUnique({ where: { id_cur: Number(id_cur) } });
-      if (!curso || curso.id_doc !== id_usr_solicitante) {
-        return res.status(400).json({ error: 'El curso indicado no existe o no te pertenece.' });
+    if (id_par) {
+      const paralelo = await prisma.paralelo.findUnique({ where: { id_par: Number(id_par) } });
+      if (!paralelo || paralelo.id_doc !== id_usr_solicitante) {
+        return res.status(400).json({ error: 'El paralelo indicado no existe o no te pertenece.' });
       }
     }
 
@@ -77,7 +84,7 @@ router.post('/', verificarToken, verificarRol(['DOCENTE']), async (req, res) => 
         hor_ini: aHoraUTC(hIniTxt),
         hor_fin: aHoraUTC(hFinTxt),
         motivo: motivo || null,
-        id_cur: id_cur ? Number(id_cur) : null,
+        id_par: id_par ? Number(id_par) : null,
         qr_token: crypto.randomUUID(), // lo usará la app móvil para generar el QR
         estado: 'RESERVADA',
       },
