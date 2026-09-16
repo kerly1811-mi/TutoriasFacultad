@@ -53,6 +53,7 @@ router.get('/', verificarToken, async (req, res) => {
           .filter((r) => r.id_esp === esp.id_esp)
           .map((r) => ({
             tipo: 'RESERVA',
+            id_rev: r.id_rev,
             etiqueta: r.solicitante
               ? `${r.solicitante.nombres} ${r.solicitante.apellidos}`
               : r.motivo || 'Reserva',

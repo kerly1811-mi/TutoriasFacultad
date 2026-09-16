@@ -21,16 +21,25 @@ const incluir = {
 };
 
 // ==========================================
-// CREAR RESERVA / TUTORÍA (SOLO DOCENTES)
+// CREAR RESERVA / TUTORÍA (DOCENTE o LABORATORISTA)
+// El docente reserva ligado a un paralelo suyo (id_par obligatorio para él).
+// El laboratorista reserva sin curso asociado, con un motivo obligatorio en su lugar.
 // Confirma al instante. "Gana el primero": si el aula ya está tomada en esa
 // franja (por otra reserva o por una clase), responde 409.
 // ==========================================
-router.post('/', verificarToken, verificarRol(['DOCENTE']), async (req, res) => {
+router.post('/', verificarToken, verificarRol(['DOCENTE', 'LABORATORISTA']), async (req, res) => {
   const id_usr_solicitante = req.usuario.id;
+  const esDocente = req.usuario.rol === 'DOCENTE';
   const { id_esp, fecha, hor_ini, hor_fin, motivo, id_par } = req.body;
 
-  if (!id_esp || !fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !id_par) {
-    return res.status(400).json({ error: 'Faltan datos de la reserva (espacio, fecha y curso).' });
+  if (!id_esp || !fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    return res.status(400).json({ error: 'Faltan datos de la reserva (espacio y fecha).' });
+  }
+  if (esDocente && !id_par) {
+    return res.status(400).json({ error: 'Falta el curso de la reserva.' });
+  }
+  if (!esDocente && (!motivo || !motivo.trim())) {
+    return res.status(400).json({ error: 'Debes indicar un motivo para la reserva.' });
   }
   if (!esHoraValida(hor_ini) || !esHoraValida(hor_fin)) {
     return res.status(400).json({ error: 'Hora inválida (formato HH:MM).' });
@@ -53,9 +62,11 @@ router.post('/', verificarToken, verificarRol(['DOCENTE']), async (req, res) => 
       return res.status(409).json({ error: 'El aula está en mantenimiento.' });
     }
 
-    const paralelo = await prisma.paralelo.findUnique({ where: { id_par: Number(id_par) } });
-    if (!paralelo || paralelo.id_doc !== id_usr_solicitante) {
-      return res.status(400).json({ error: 'El curso indicado no existe o no te pertenece.' });
+    if (esDocente) {
+      const paralelo = await prisma.paralelo.findUnique({ where: { id_par: Number(id_par) } });
+      if (!paralelo || paralelo.id_doc !== id_usr_solicitante) {
+        return res.status(400).json({ error: 'El curso indicado no existe o no te pertenece.' });
+      }
     }
 
     // 1) ¿Choca con una clase regular de ese día?
@@ -82,7 +93,7 @@ router.post('/', verificarToken, verificarRol(['DOCENTE']), async (req, res) => 
         hor_ini: aHoraUTC(hIniTxt),
         hor_fin: aHoraUTC(hFinTxt),
         motivo: motivo || null,
-        id_par: Number(id_par),
+        id_par: id_par ? Number(id_par) : null,
         qr_token: crypto.randomUUID(), // lo usará la app móvil para generar el QR
         estado: 'RESERVADA',
       },

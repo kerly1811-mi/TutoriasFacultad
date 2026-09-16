@@ -8,6 +8,7 @@ const prisma = new PrismaClient();
 const incluirParalelo = {
   materia: { select: { nom_mat: true } },
   nivel: { select: { nom_niv: true, carrera: { select: { nom_car: true } } } },
+  docente: { select: { id_usr: true, nombres: true, apellidos: true } },
 };
 
 // ==========================================
@@ -49,10 +50,18 @@ router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, re
 });
 
 // ==========================================
-// LISTAR MATRÍCULAS (SOLO ADMINISTRADORES)  ?id_par=  ?id_est=
+// LISTAR MATRÍCULAS   ?id_par=  ?id_est=
+// ADMINISTRADOR ve cualquier combinación. ESTUDIANTE solo puede ver las suyas
+// (se ignora cualquier `id_est` que mande; siempre se fuerza al suyo propio).
 // ==========================================
-router.get('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
-  const { id_par, id_est } = req.query;
+router.get('/', verificarToken, async (req, res) => {
+  const esAdmin = req.usuario.rol === 'ADMINISTRADOR';
+  if (!esAdmin && req.usuario.rol !== 'ESTUDIANTE') {
+    return res.status(403).json({ error: 'No tienes permiso para ver las matrículas.' });
+  }
+
+  const { id_par } = req.query;
+  const id_est = esAdmin ? req.query.id_est : req.usuario.id;
 
   try {
     const matriculas = await prisma.matricula.findMany({
