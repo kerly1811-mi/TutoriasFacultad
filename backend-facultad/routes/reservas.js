@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { PrismaClient } = require('@prisma/client');
 const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
 const { aMinutos, aHoraUTC, esHoraValida, seSolapan, diaSemanaDe } = require('../utils/tiempo');
+const { crearNotificacion } = require('./notificaciones');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -108,6 +109,98 @@ router.post('/', verificarToken, verificarRol(['DOCENTE', 'LABORATORISTA']), asy
 });
 
 // ==========================================
+// EDITAR RESERVA (solo el dueño -- docente o laboratorista que la creó)
+// Mismas reglas que al crear: valida choques excluyéndose a sí misma.
+// ==========================================
+router.put('/:id', verificarToken, verificarRol(['DOCENTE', 'LABORATORISTA']), async (req, res) => {
+  const id_rev = Number(req.params.id);
+  const esDocente = req.usuario.rol === 'DOCENTE';
+  const { id_esp, fecha, hor_ini, hor_fin, motivo, id_par } = req.body;
+
+  if (!id_esp || !fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    return res.status(400).json({ error: 'Faltan datos de la reserva (espacio y fecha).' });
+  }
+  if (esDocente && !id_par) {
+    return res.status(400).json({ error: 'Falta el curso de la reserva.' });
+  }
+  if (!esDocente && (!motivo || !motivo.trim())) {
+    return res.status(400).json({ error: 'Debes indicar un motivo para la reserva.' });
+  }
+  if (!esHoraValida(hor_ini) || !esHoraValida(hor_fin)) {
+    return res.status(400).json({ error: 'Hora inválida (formato HH:MM).' });
+  }
+  const ini = aMinutos(hor_ini);
+  const fin = aMinutos(hor_fin);
+  if (fin <= ini) {
+    return res.status(400).json({ error: 'La hora de fin debe ser posterior a la de inicio.' });
+  }
+  if (new Date(`${fecha}T00:00:00.000Z`) < new Date(new Date().toISOString().slice(0, 10))) {
+    return res.status(400).json({ error: 'La fecha no puede ser anterior a hoy.' });
+  }
+
+  try {
+    const reserva = await prisma.reserva.findUnique({ where: { id_rev } });
+    if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada.' });
+    if (reserva.id_usr_solicitante !== req.usuario.id) {
+      return res.status(403).json({ error: 'No puedes editar esta reserva.' });
+    }
+    if (reserva.estado === 'CANCELADA') {
+      return res.status(409).json({ error: 'Esta reserva ya fue cancelada.' });
+    }
+
+    const espacio = await prisma.espacio.findUnique({ where: { id_esp: Number(id_esp) } });
+    if (!espacio) return res.status(404).json({ error: 'El aula no existe.' });
+    if (espacio.estado === 'MANTENIMIENTO') {
+      return res.status(409).json({ error: 'El aula está en mantenimiento.' });
+    }
+
+    if (esDocente) {
+      const paralelo = await prisma.paralelo.findUnique({ where: { id_par: Number(id_par) } });
+      if (!paralelo || paralelo.id_doc !== req.usuario.id) {
+        return res.status(400).json({ error: 'El curso indicado no existe o no te pertenece.' });
+      }
+    }
+
+    const clases = await prisma.horarioClase.findMany({
+      where: { id_esp: Number(id_esp), dia_semana: diaSemanaDe(fecha) },
+    });
+    if (clases.some((c) => seSolapan(ini, fin, aMinutos(c.hora_ini), aMinutos(c.hora_fin)))) {
+      return res.status(409).json({ error: 'A esa hora el aula tiene clase programada.' });
+    }
+
+    const otrasReservas = await prisma.reserva.findMany({
+      where: {
+        id_esp: Number(id_esp),
+        fecha: new Date(`${fecha}T00:00:00.000Z`),
+        estado: { not: 'CANCELADA' },
+        id_rev: { not: id_rev },
+      },
+    });
+    if (otrasReservas.some((r) => seSolapan(ini, fin, aMinutos(r.hor_ini), aMinutos(r.hor_fin)))) {
+      return res.status(409).json({ error: 'El aula ya está reservada en esa franja.' });
+    }
+
+    const actualizada = await prisma.reserva.update({
+      where: { id_rev },
+      data: {
+        id_esp: Number(id_esp),
+        fecha: new Date(`${fecha}T00:00:00.000Z`),
+        hor_ini: aHoraUTC(hor_ini),
+        hor_fin: aHoraUTC(hor_fin),
+        motivo: motivo || null,
+        id_par: id_par ? Number(id_par) : null,
+      },
+      include: incluir,
+    });
+
+    res.json({ mensaje: 'Reserva actualizada', reserva: actualizada });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al actualizar la reserva.' });
+  }
+});
+
+// ==========================================
 // LISTAR RESERVAS   ?mias=1  -> solo las del usuario del token
 // ==========================================
 router.get('/', verificarToken, async (req, res) => {
@@ -137,7 +230,10 @@ router.patch('/:id/cancelar', verificarToken, async (req, res) => {
   }
 
   try {
-    const reserva = await prisma.reserva.findUnique({ where: { id_rev } });
+    const reserva = await prisma.reserva.findUnique({
+      where: { id_rev },
+      include: { paralelo: { select: { materia: { select: { nom_mat: true } } } }, espacio: { select: { nom_esp: true } } },
+    });
     if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada.' });
 
     const esDueno = reserva.id_usr_solicitante === req.usuario.id;
@@ -151,6 +247,36 @@ router.patch('/:id/cancelar', verificarToken, async (req, res) => {
       data: { estado: 'CANCELADA', motivo_cancelacion: motivo.trim() },
       include: incluir,
     });
+
+    // Notifica a los estudiantes matriculados en el curso (docente o laboratorista
+    // que cancela), y también al docente dueño si fue el laboratorista quien canceló.
+    if (reserva.id_par) {
+      const materiaTxt = reserva.paralelo?.materia?.nom_mat || 'tu curso';
+      const fechaTxt = new Date(reserva.fecha).toISOString().slice(0, 10);
+
+      const matriculas = await prisma.matricula.findMany({
+        where: { id_par: reserva.id_par },
+        select: { id_est: true },
+      });
+      await Promise.all(
+        matriculas.map((m) =>
+          crearNotificacion({
+            id_usr: m.id_est,
+            tipo: 'RESERVA_CANCELADA',
+            mensaje: `Se canceló la tutoría de ${materiaTxt} del ${fechaTxt} en ${reserva.espacio?.nom_esp || 'el aula'}. Motivo: ${motivo.trim()}`,
+          })
+        )
+      );
+
+      if (req.usuario.rol === 'LABORATORISTA' && reserva.id_usr_solicitante !== req.usuario.id) {
+        await crearNotificacion({
+          id_usr: reserva.id_usr_solicitante,
+          tipo: 'RESERVA_CANCELADA',
+          mensaje: `El laboratorista canceló tu tutoría de ${materiaTxt} del ${fechaTxt} en ${reserva.espacio?.nom_esp || 'el aula'}. Motivo: ${motivo.trim()}`,
+        });
+      }
+    }
+
     res.json({ mensaje: 'Reserva cancelada', reserva: actualizada });
   } catch (error) {
     console.error(error);
