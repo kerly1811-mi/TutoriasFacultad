@@ -40,6 +40,8 @@ model Usuario {
   reservas_asignadas   Reserva[]      @relation("DocenteReserva")
   asistencias          Asistencia[]
   horarios_docente     HorarioClase[] @relation("DocenteHorario")
+  solicitudes          Solicitud[]
+  notificaciones       Notificacion[]
 }
 
 model Espacio {
@@ -51,8 +53,9 @@ model Espacio {
   piso      String?       @db.VarChar(5) // BLOQUE_1: "1".."3" | BLOQUE_2: "C".."J"
   estado    String        @default("DISPONIBLE") @db.VarChar(20) // DISPONIBLE | MANTENIMIENTO
 
-  reservas Reserva[]
-  horarios HorarioClase[]
+  reservas    Reserva[]
+  horarios    HorarioClase[]
+  solicitudes Solicitud[]
 }
 
 // Horario semanal de clases regulares. Se carga una vez por ciclo; se repite
@@ -110,8 +113,9 @@ model Paralelo {
   materia    Materia     @relation(fields: [id_mat], references: [id_mat])
   nivel      Nivel       @relation(fields: [id_niv], references: [id_niv])
   docente    Usuario     @relation(fields: [id_doc], references: [id_usr])
-  matriculas Matricula[]
-  reservas   Reserva[]
+  matriculas  Matricula[]
+  reservas    Reserva[]
+  solicitudes Solicitud[]
 }
 
 // Matrícula de un estudiante en un paralelo (relación muchos-a-muchos).
@@ -173,4 +177,45 @@ model Documento {
   fecha_subida DateTime @default(now())
 
   reserva Reserva @relation(fields: [id_rev], references: [id_rev])
+}
+
+// Pedido de un estudiante a un docente para que reserve una tutoría. El
+// docente decide: la acepta (y él mismo elige el espacio libre al reservar
+// desde /reservas) o la rechaza con una razón.
+model Solicitud {
+  id_sol         Int       @id @default(autoincrement())
+  id_est         Int
+  id_par         Int
+  id_esp         Int // el estudiante elige el espacio al solicitar
+  fecha          DateTime  @db.Date
+  hor_ini        DateTime  @db.Time
+  hor_fin        DateTime  @db.Time
+  tema           String?   @db.Text
+  estado         String    @default("PENDIENTE") @db.VarChar(20) // PENDIENTE | ACEPTADA | RECHAZADA
+  razon_rechazo  String?   @db.Text
+  creado_en      DateTime  @default(now())
+  resuelto_en    DateTime?
+
+  estudiante     Usuario        @relation(fields: [id_est], references: [id_usr])
+  paralelo       Paralelo       @relation(fields: [id_par], references: [id_par])
+  espacio        Espacio        @relation(fields: [id_esp], references: [id_esp])
+  notificaciones Notificacion[]
+
+  @@index([id_par, estado])
+}
+
+// Notificación simple para el ícono de campana del sidebar.
+model Notificacion {
+  id_not    Int      @id @default(autoincrement())
+  id_usr    Int // destinatario
+  tipo      String   @db.VarChar(40) // SOLICITUD_NUEVA | SOLICITUD_ACEPTADA | SOLICITUD_RECHAZADA
+  mensaje   String   @db.Text
+  id_sol    Int?
+  leida     Boolean  @default(false)
+  creado_en DateTime @default(now())
+
+  usuario   Usuario    @relation(fields: [id_usr], references: [id_usr])
+  solicitud Solicitud? @relation(fields: [id_sol], references: [id_sol])
+
+  @@index([id_usr, leida])
 }

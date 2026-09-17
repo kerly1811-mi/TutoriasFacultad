@@ -25,8 +25,12 @@ const nivelesRoutes = require('./routes/niveles');
 const materiasRoutes = require('./routes/materias');
 const paralelosRoutes = require('./routes/paralelos');
 const matriculasRoutes = require('./routes/matriculas');
+const solicitudesRoutes = require('./routes/solicitudes');
+const notificacionesRoutes = require('./routes/notificaciones');
 
 app.use('/api/documentos', documentosRoutes);
+app.use('/api/solicitudes', solicitudesRoutes);
+app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/carreras', carrerasRoutes);
 app.use('/api/niveles', nivelesRoutes);
 app.use('/api/materias', materiasRoutes);
