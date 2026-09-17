@@ -53,15 +53,25 @@ router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, re
 // LISTAR MATRÍCULAS   ?id_par=  ?id_est=
 // ADMINISTRADOR ve cualquier combinación. ESTUDIANTE solo puede ver las suyas
 // (se ignora cualquier `id_est` que mande; siempre se fuerza al suyo propio).
+// DOCENTE debe indicar `id_par` de un paralelo suyo (para ver la lista del curso,
+// p. ej. al pasar asistencia manual).
 // ==========================================
 router.get('/', verificarToken, async (req, res) => {
-  const esAdmin = req.usuario.rol === 'ADMINISTRADOR';
-  if (!esAdmin && req.usuario.rol !== 'ESTUDIANTE') {
+  const rol = req.usuario.rol;
+  if (!['ADMINISTRADOR', 'ESTUDIANTE', 'DOCENTE'].includes(rol)) {
     return res.status(403).json({ error: 'No tienes permiso para ver las matrículas.' });
   }
 
   const { id_par } = req.query;
-  const id_est = esAdmin ? req.query.id_est : req.usuario.id;
+  const id_est = rol === 'ADMINISTRADOR' ? req.query.id_est : rol === 'ESTUDIANTE' ? req.usuario.id : undefined;
+
+  if (rol === 'DOCENTE') {
+    if (!id_par) return res.status(400).json({ error: 'Indica el paralelo (id_par).' });
+    const paralelo = await prisma.paralelo.findUnique({ where: { id_par: Number(id_par) } });
+    if (!paralelo || paralelo.id_doc !== req.usuario.id) {
+      return res.status(403).json({ error: 'Ese curso no te pertenece.' });
+    }
+  }
 
   try {
     const matriculas = await prisma.matricula.findMany({

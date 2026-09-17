@@ -48,6 +48,67 @@ router.post('/registrar', verificarToken, verificarRol(['ESTUDIANTE', 'ADMINISTR
 });
 
 // ==========================================
+// REGISTRO MANUAL (DOCENTE dueño de la reserva marca a un estudiante presente)
+// ==========================================
+router.post('/manual', verificarToken, verificarRol(['DOCENTE']), async (req, res) => {
+  const { id_rev, id_est } = req.body;
+  if (!id_rev || !id_est) {
+    return res.status(400).json({ error: 'Faltan datos (reserva y estudiante).' });
+  }
+
+  try {
+    const reserva = await prisma.reserva.findUnique({ where: { id_rev: Number(id_rev) } });
+    if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada.' });
+    if (reserva.id_usr_solicitante !== req.usuario.id) {
+      return res.status(403).json({ error: 'No puedes registrar asistencia en esta tutoría.' });
+    }
+
+    if (reserva.id_par) {
+      const matricula = await prisma.matricula.findFirst({
+        where: { id_est: Number(id_est), id_par: reserva.id_par },
+      });
+      if (!matricula) return res.status(400).json({ error: 'Ese estudiante no está matriculado en este curso.' });
+    }
+
+    const nuevaAsistencia = await prisma.asistencia.create({
+      data: { id_rev: Number(id_rev), id_est: Number(id_est), validado_qr: false },
+    });
+    res.status(201).json({ mensaje: 'Asistencia registrada.', asistencia: nuevaAsistencia });
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'Ese estudiante ya tiene asistencia registrada.' });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Error al registrar la asistencia.' });
+  }
+});
+
+// ==========================================
+// QUITAR REGISTRO MANUAL (por si el docente se equivoca al marcar)
+// ==========================================
+router.delete('/manual/:id_rev/:id_est', verificarToken, verificarRol(['DOCENTE']), async (req, res) => {
+  const id_rev = Number(req.params.id_rev);
+  const id_est = Number(req.params.id_est);
+
+  try {
+    const reserva = await prisma.reserva.findUnique({ where: { id_rev } });
+    if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada.' });
+    if (reserva.id_usr_solicitante !== req.usuario.id) {
+      return res.status(403).json({ error: 'No puedes modificar la asistencia de esta tutoría.' });
+    }
+
+    await prisma.asistencia.delete({ where: { id_rev_id_est: { id_rev, id_est } } });
+    res.json({ mensaje: 'Asistencia eliminada.' });
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Ese estudiante no tenía asistencia registrada.' });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Error al quitar la asistencia.' });
+  }
+});
+
+// ==========================================
 // VER ASISTENTES A UNA TUTORÍA (Para Docentes y Laboratoristas)
 // ==========================================
 router.get('/reserva/:id_rev', verificarToken, async (req, res) => {
