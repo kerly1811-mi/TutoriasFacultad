@@ -170,11 +170,13 @@ model Asistencia {
 }
 
 model Documento {
-  id_docu      Int      @id @default(autoincrement())
-  id_rev       Int
-  url_archivo  String   @db.Text
-  nom_archivo  String   @db.VarChar(255)
-  fecha_subida DateTime @default(now())
+  id_docu       Int      @id @default(autoincrement())
+  id_rev        Int
+  url_archivo   String   @db.Text
+  nom_archivo   String   @db.VarChar(255)
+  extension     String?  @db.VarChar(10) // "pdf", "pptx", "zip"... para el ícono en la lista
+  tamano_bytes  Int?
+  fecha_subida  DateTime @default(now())
 
   reserva Reserva @relation(fields: [id_rev], references: [id_rev])
 }
