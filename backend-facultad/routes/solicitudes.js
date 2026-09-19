@@ -1,7 +1,7 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
-const { aMinutos, aHoraUTC, esHoraValida, seSolapan, diaSemanaDe } = require('../utils/tiempo');
+const { aMinutos, aHoraUTC, esHoraValida, seSolapan, diaSemanaDe, fechaBonita } = require('../utils/tiempo');
 const { crearNotificacion } = require('./notificaciones');
 
 const router = express.Router();
@@ -96,7 +96,7 @@ router.post('/', verificarToken, verificarRol(['ESTUDIANTE']), async (req, res) 
       id_usr: paralelo.id_doc,
       tipo: 'SOLICITUD_NUEVA',
       id_sol: solicitud.id_sol,
-      mensaje: `${estudiante.nombres} ${estudiante.apellidos} solicitó una tutoría de ${paralelo.materia.nom_mat} en ${espacio.nom_esp} para el ${fecha} de ${hor_ini} a ${hor_fin}.`,
+      mensaje: `${estudiante.nombres} ${estudiante.apellidos} solicitó una tutoría de ${paralelo.materia.nom_mat} en ${espacio.nom_esp} para el ${fechaBonita(fecha)} de ${hor_ini} a ${hor_fin}.`,
     });
 
     res.status(201).json({ mensaje: 'Solicitud enviada', solicitud });

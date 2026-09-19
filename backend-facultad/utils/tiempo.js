@@ -37,4 +37,20 @@ function diaSemanaDe(fechaStr) {
   return DIAS[d.getUTCDay()];
 }
 
-module.exports = { DIAS, aMinutos, aHoraUTC, esHoraValida, seSolapan, diaSemanaDe };
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+// "YYYY-MM-DD" o Date -> "16 sep 2026", para mensajes legibles (notificaciones).
+function fechaBonita(valor) {
+  const s = valor instanceof Date ? valor.toISOString().slice(0, 10) : String(valor).slice(0, 10);
+  const [y, m, d] = s.split('-').map(Number);
+  return `${d} ${MESES[m - 1]} ${y}`;
+}
+
+// "HH:MM" a partir de un Date (columna Time de Prisma, en UTC) -- misma
+// convención "naive" que aMinutos/aHoraUTC.
+function horaTxt(valor) {
+  const d = new Date(valor);
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+}
+
+module.exports = { DIAS, aMinutos, aHoraUTC, esHoraValida, seSolapan, diaSemanaDe, fechaBonita, horaTxt };

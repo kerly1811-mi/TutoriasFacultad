@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { PrismaClient } = require('@prisma/client');
 const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
-const { aMinutos, aHoraUTC, esHoraValida, seSolapan, diaSemanaDe } = require('../utils/tiempo');
+const { aMinutos, aHoraUTC, esHoraValida, seSolapan, diaSemanaDe, fechaBonita, horaTxt } = require('../utils/tiempo');
 const { crearNotificacion } = require('./notificaciones');
 
 const router = express.Router();
@@ -252,7 +252,7 @@ router.patch('/:id/cancelar', verificarToken, async (req, res) => {
     // que cancela), y también al docente dueño si fue el laboratorista quien canceló.
     if (reserva.id_par) {
       const materiaTxt = reserva.paralelo?.materia?.nom_mat || 'tu curso';
-      const fechaTxt = new Date(reserva.fecha).toISOString().slice(0, 10);
+      const cuandoTxt = `${fechaBonita(reserva.fecha)}, ${horaTxt(reserva.hor_ini)} a ${horaTxt(reserva.hor_fin)}`;
 
       const matriculas = await prisma.matricula.findMany({
         where: { id_par: reserva.id_par },
@@ -263,7 +263,7 @@ router.patch('/:id/cancelar', verificarToken, async (req, res) => {
           crearNotificacion({
             id_usr: m.id_est,
             tipo: 'RESERVA_CANCELADA',
-            mensaje: `Se canceló la tutoría de ${materiaTxt} del ${fechaTxt} en ${reserva.espacio?.nom_esp || 'el aula'}. Motivo: ${motivo.trim()}`,
+            mensaje: `Se canceló la tutoría de ${materiaTxt} del ${cuandoTxt} en ${reserva.espacio?.nom_esp || 'el aula'}. Motivo: ${motivo.trim()}`,
           })
         )
       );
@@ -272,7 +272,7 @@ router.patch('/:id/cancelar', verificarToken, async (req, res) => {
         await crearNotificacion({
           id_usr: reserva.id_usr_solicitante,
           tipo: 'RESERVA_CANCELADA',
-          mensaje: `El laboratorista canceló tu tutoría de ${materiaTxt} del ${fechaTxt} en ${reserva.espacio?.nom_esp || 'el aula'}. Motivo: ${motivo.trim()}`,
+          mensaje: `El laboratorista canceló tu tutoría de ${materiaTxt} del ${cuandoTxt} en ${reserva.espacio?.nom_esp || 'el aula'}. Motivo: ${motivo.trim()}`,
         });
       }
     }
@@ -281,6 +281,45 @@ router.patch('/:id/cancelar', verificarToken, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al cancelar la reserva.' });
+  }
+});
+
+// ==========================================
+// FINALIZAR TUTORÍA ANTES DE TIEMPO (el docente dueño)
+// Recorta hor_fin a la hora actual (que manda el frontend en su hora local):
+// la tutoría queda concluida desde ya y el resto del espacio queda libre.
+// ==========================================
+router.patch('/:id/finalizar', verificarToken, verificarRol(['DOCENTE']), async (req, res) => {
+  const id_rev = Number(req.params.id);
+  const { hora_fin } = req.body;
+
+  if (!esHoraValida(hora_fin)) {
+    return res.status(400).json({ error: 'Hora inválida (formato HH:MM).' });
+  }
+
+  try {
+    const reserva = await prisma.reserva.findUnique({ where: { id_rev } });
+    if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada.' });
+    if (reserva.id_usr_solicitante !== req.usuario.id) {
+      return res.status(403).json({ error: 'No puedes finalizar esta reserva.' });
+    }
+    if (reserva.estado === 'CANCELADA') {
+      return res.status(409).json({ error: 'Esta reserva ya fue cancelada.' });
+    }
+    if (aMinutos(hora_fin) <= aMinutos(reserva.hor_ini)) {
+      return res.status(400).json({ error: 'La hora de fin debe ser posterior a la de inicio.' });
+    }
+
+    const actualizada = await prisma.reserva.update({
+      where: { id_rev },
+      data: { hor_fin: aHoraUTC(hora_fin) },
+      include: incluir,
+    });
+
+    res.json({ mensaje: 'Tutoría finalizada', reserva: actualizada });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al finalizar la tutoría.' });
   }
 });
 
