@@ -10,8 +10,9 @@ const prisma = new PrismaClient();
 // No pertenece a una carrera/nivel fijo: se asocia a uno o varios al crear paralelos.
 // ==========================================
 router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
-  const { nom_mat } = req.body;
+  const nom_mat = (req.body.nom_mat || '').trim();
   if (!nom_mat) return res.status(400).json({ error: 'Falta el nombre de la materia.' });
+  if (nom_mat.length > 150) return res.status(400).json({ error: 'El nombre de la materia es demasiado largo.' });
 
   try {
     const nueva = await prisma.materia.create({ data: { nom_mat } });
@@ -40,7 +41,9 @@ router.get('/', verificarToken, async (req, res) => {
 // ==========================================
 router.put('/:id', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
   const id_mat = Number(req.params.id);
-  const { nom_mat } = req.body;
+  const nom_mat = (req.body.nom_mat || '').trim();
+  if (!nom_mat) return res.status(400).json({ error: 'Falta el nombre de la materia.' });
+  if (nom_mat.length > 150) return res.status(400).json({ error: 'El nombre de la materia es demasiado largo.' });
 
   try {
     const actualizada = await prisma.materia.update({ where: { id_mat }, data: { nom_mat } });

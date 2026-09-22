@@ -19,6 +19,7 @@ const incluir = {
       nivel: { select: { nom_niv: true, carrera: { select: { nom_car: true } } } },
     },
   },
+  _count: { select: { asistencias: true } },
 };
 
 // ==========================================
@@ -59,8 +60,8 @@ router.post('/', verificarToken, verificarRol(['DOCENTE', 'LABORATORISTA']), asy
   try {
     const espacio = await prisma.espacio.findUnique({ where: { id_esp: Number(id_esp) } });
     if (!espacio) return res.status(404).json({ error: 'El aula no existe.' });
-    if (espacio.estado === 'MANTENIMIENTO') {
-      return res.status(409).json({ error: 'El aula está en mantenimiento.' });
+    if (espacio.estado === 'MANTENIMIENTO' || !espacio.activo) {
+      return res.status(409).json({ error: 'El aula no está disponible.' });
     }
 
     if (esDocente) {
@@ -78,12 +79,24 @@ router.post('/', verificarToken, verificarRol(['DOCENTE', 'LABORATORISTA']), asy
       return res.status(409).json({ error: 'A esa hora el aula tiene clase programada.' });
     }
 
-    // 2) ¿Choca con otra reserva de esa fecha?
+    // 2) ¿Choca con otra reserva de esa fecha, en la misma aula?
     const reservas = await prisma.reserva.findMany({
       where: { id_esp: Number(id_esp), fecha: new Date(`${fecha}T00:00:00.000Z`), estado: { not: 'CANCELADA' } },
     });
     if (reservas.some((r) => seSolapan(ini, fin, aMinutos(r.hor_ini), aMinutos(r.hor_fin)))) {
       return res.status(409).json({ error: 'El aula ya está reservada en esa franja.' });
+    }
+
+    // 3) ¿El solicitante ya tiene otra reserva a esa hora, en cualquier otra aula?
+    const reservasSolicitante = await prisma.reserva.findMany({
+      where: {
+        id_usr_solicitante,
+        fecha: new Date(`${fecha}T00:00:00.000Z`),
+        estado: { not: 'CANCELADA' },
+      },
+    });
+    if (reservasSolicitante.some((r) => seSolapan(ini, fin, aMinutos(r.hor_ini), aMinutos(r.hor_fin)))) {
+      return res.status(409).json({ error: 'Ya tienes otra reserva en ese horario, en otra aula.' });
     }
 
     const nuevaReserva = await prisma.reserva.create({
@@ -150,8 +163,8 @@ router.put('/:id', verificarToken, verificarRol(['DOCENTE', 'LABORATORISTA']), a
 
     const espacio = await prisma.espacio.findUnique({ where: { id_esp: Number(id_esp) } });
     if (!espacio) return res.status(404).json({ error: 'El aula no existe.' });
-    if (espacio.estado === 'MANTENIMIENTO') {
-      return res.status(409).json({ error: 'El aula está en mantenimiento.' });
+    if (espacio.estado === 'MANTENIMIENTO' || !espacio.activo) {
+      return res.status(409).json({ error: 'El aula no está disponible.' });
     }
 
     if (esDocente) {
@@ -178,6 +191,19 @@ router.put('/:id', verificarToken, verificarRol(['DOCENTE', 'LABORATORISTA']), a
     });
     if (otrasReservas.some((r) => seSolapan(ini, fin, aMinutos(r.hor_ini), aMinutos(r.hor_fin)))) {
       return res.status(409).json({ error: 'El aula ya está reservada en esa franja.' });
+    }
+
+    // ¿El solicitante ya tiene otra reserva a esa hora, en cualquier otra aula?
+    const reservasSolicitante = await prisma.reserva.findMany({
+      where: {
+        id_usr_solicitante: reserva.id_usr_solicitante,
+        fecha: new Date(`${fecha}T00:00:00.000Z`),
+        estado: { not: 'CANCELADA' },
+        id_rev: { not: id_rev },
+      },
+    });
+    if (reservasSolicitante.some((r) => seSolapan(ini, fin, aMinutos(r.hor_ini), aMinutos(r.hor_fin)))) {
+      return res.status(409).json({ error: 'Ya tienes otra reserva en ese horario, en otra aula.' });
     }
 
     const actualizada = await prisma.reserva.update({

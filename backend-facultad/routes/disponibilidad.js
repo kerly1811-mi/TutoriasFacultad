@@ -29,7 +29,7 @@ router.get('/', verificarToken, async (req, res) => {
 
   try {
     const [espacios, horarios, reservas] = await Promise.all([
-      prisma.espacio.findMany({ where: { estado: 'DISPONIBLE' }, orderBy: { nom_esp: 'asc' } }),
+      prisma.espacio.findMany({ where: { estado: 'DISPONIBLE', activo: true }, orderBy: { nom_esp: 'asc' } }),
       prisma.horarioClase.findMany({ where: { dia_semana: dia } }),
       prisma.reserva.findMany({
         where: { fecha: new Date(`${fecha}T00:00:00.000Z`), estado: { not: 'CANCELADA' } },

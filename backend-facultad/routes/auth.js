@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
+const { cedulaValida, correoValido } = require('../utils/validadores');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -13,8 +14,28 @@ router.post('/registro', async (req, res) => {
   // El registro público SIEMPRE crea estudiantes. Cualquier `rol` que llegue en
   // el body se ignora. Docentes, laboratoristas y administradores los da de alta
   // un administrador desde POST /api/usuarios.
-  const { cedula, nombres, apellidos, correo, password } = req.body;
+  const cedula = (req.body.cedula || '').trim();
+  const nombres = (req.body.nombres || '').trim();
+  const apellidos = (req.body.apellidos || '').trim();
+  const correo = (req.body.correo || '').trim();
+  const { password } = req.body;
   const rol = 'ESTUDIANTE';
+
+  if (!cedula || !nombres || !apellidos || !correo || !password) {
+    return res.status(400).json({ error: 'Faltan datos obligatorios.' });
+  }
+  if (!cedulaValida(cedula)) {
+    return res.status(400).json({ error: 'La cédula ingresada no es válida.' });
+  }
+  if (!correoValido(correo)) {
+    return res.status(400).json({ error: 'El correo ingresado no es válido.' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+  }
+  if (nombres.length > 100 || apellidos.length > 100 || correo.length > 100) {
+    return res.status(400).json({ error: 'Alguno de los campos supera la longitud permitida.' });
+  }
 
   try {
     // 1. Verificar si el usuario ya existe (por cédula o correo)
@@ -72,6 +93,9 @@ router.post('/login', async (req, res) => {
 
     if (!usuario) {
       return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+    if (!usuario.activo) {
+      return res.status(403).json({ error: 'Tu cuenta está deshabilitada. Contacta a un administrador.' });
     }
 
     // 2. Verificar la contraseña

@@ -9,8 +9,9 @@ const prisma = new PrismaClient();
 // CREAR CARRERA (SOLO ADMINISTRADORES)
 // ==========================================
 router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
-  const { nom_car } = req.body;
+  const nom_car = (req.body.nom_car || '').trim();
   if (!nom_car) return res.status(400).json({ error: 'Falta el nombre de la carrera.' });
+  if (nom_car.length > 150) return res.status(400).json({ error: 'El nombre de la carrera es demasiado largo.' });
 
   try {
     const nueva = await prisma.carrera.create({ data: { nom_car } });
@@ -42,7 +43,9 @@ router.get('/', verificarToken, async (req, res) => {
 // ==========================================
 router.put('/:id', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
   const id_car = Number(req.params.id);
-  const { nom_car } = req.body;
+  const nom_car = (req.body.nom_car || '').trim();
+  if (!nom_car) return res.status(400).json({ error: 'Falta el nombre de la carrera.' });
+  if (nom_car.length > 150) return res.status(400).json({ error: 'El nombre de la carrera es demasiado largo.' });
 
   try {
     const actualizada = await prisma.carrera.update({ where: { id_car }, data: { nom_car } });

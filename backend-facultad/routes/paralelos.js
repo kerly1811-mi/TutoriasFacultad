@@ -22,10 +22,14 @@ const incluir = {
 // Materia dictada en un nivel concreto por un docente concreto.
 // ==========================================
 router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
-  const { nom_par, id_mat, id_niv, id_doc } = req.body;
+  const nom_par = (req.body.nom_par || '').trim();
+  const { id_mat, id_niv, id_doc } = req.body;
 
   if (!nom_par || !id_mat || !id_niv || !id_doc) {
     return res.status(400).json({ error: 'Faltan datos del paralelo (nombre, materia, nivel y docente).' });
+  }
+  if (nom_par.length > 10) {
+    return res.status(400).json({ error: 'El nombre del paralelo es demasiado largo (máximo 10 caracteres).' });
   }
 
   try {
@@ -78,7 +82,12 @@ router.get('/', verificarToken, async (req, res) => {
 // ==========================================
 router.put('/:id', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
   const id_par = Number(req.params.id);
-  const { nom_par, id_mat, id_niv, id_doc } = req.body;
+  const { id_mat, id_niv, id_doc } = req.body;
+  const nom_par = req.body.nom_par !== undefined ? req.body.nom_par.trim() : undefined;
+
+  if (nom_par !== undefined && (!nom_par || nom_par.length > 10)) {
+    return res.status(400).json({ error: 'Nombre del paralelo inválido (máximo 10 caracteres).' });
+  }
 
   try {
     if (id_doc !== undefined) {

@@ -54,8 +54,8 @@ router.post('/', verificarToken, verificarRol(['ESTUDIANTE']), async (req, res) 
 
     const espacio = await prisma.espacio.findUnique({ where: { id_esp: Number(id_esp) } });
     if (!espacio) return res.status(404).json({ error: 'El aula no existe.' });
-    if (espacio.estado === 'MANTENIMIENTO') {
-      return res.status(409).json({ error: 'El aula está en mantenimiento.' });
+    if (espacio.estado === 'MANTENIMIENTO' || !espacio.activo) {
+      return res.status(409).json({ error: 'El aula no está disponible.' });
     }
 
     const ini = aMinutos(hor_ini);
@@ -109,11 +109,18 @@ router.post('/', verificarToken, verificarRol(['ESTUDIANTE']), async (req, res) 
 // ==========================================
 // LISTAR SOLICITUDES
 // DOCENTE: las de sus paralelos. ESTUDIANTE: las suyas.
+// ADMINISTRADOR/LABORATORISTA: todas (para reportes).
 // ==========================================
-router.get('/', verificarToken, verificarRol(['DOCENTE', 'ESTUDIANTE']), async (req, res) => {
+router.get(
+  '/',
+  verificarToken,
+  verificarRol(['DOCENTE', 'ESTUDIANTE', 'ADMINISTRADOR', 'LABORATORISTA']),
+  async (req, res) => {
   try {
-    const where =
-      req.usuario.rol === 'DOCENTE' ? { paralelo: { id_doc: req.usuario.id } } : { id_est: req.usuario.id };
+    let where;
+    if (req.usuario.rol === 'DOCENTE') where = { paralelo: { id_doc: req.usuario.id } };
+    else if (req.usuario.rol === 'ESTUDIANTE') where = { id_est: req.usuario.id };
+    else where = undefined; // ADMINISTRADOR / LABORATORISTA: todas
 
     const solicitudes = await prisma.solicitud.findMany({
       where,
@@ -132,7 +139,8 @@ router.get('/', verificarToken, verificarRol(['DOCENTE', 'ESTUDIANTE']), async (
     console.error(error);
     res.status(500).json({ error: 'Error al obtener las solicitudes.' });
   }
-});
+  }
+);
 
 // ==========================================
 // ACEPTAR (DOCENTE dueño del paralelo)

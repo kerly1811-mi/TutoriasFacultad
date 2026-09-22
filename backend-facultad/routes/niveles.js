@@ -9,8 +9,10 @@ const prisma = new PrismaClient();
 // CREAR NIVEL (SOLO ADMINISTRADORES)
 // ==========================================
 router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
-  const { nom_niv, id_car } = req.body;
+  const nom_niv = (req.body.nom_niv || '').trim();
+  const { id_car } = req.body;
   if (!nom_niv || !id_car) return res.status(400).json({ error: 'Faltan datos del nivel (nombre y carrera).' });
+  if (nom_niv.length > 50) return res.status(400).json({ error: 'El nombre del nivel es demasiado largo.' });
 
   try {
     const carrera = await prisma.carrera.findUnique({ where: { id_car: Number(id_car) } });

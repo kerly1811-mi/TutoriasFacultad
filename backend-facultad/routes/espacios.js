@@ -17,14 +17,23 @@ function bloqueYPisoValidos(bloque, piso) {
   return BLOQUES.includes(bloque) && PISOS_POR_BLOQUE[bloque].includes(piso);
 }
 
+const GESTION = ['ADMINISTRADOR', 'LABORATORISTA'];
+
 // ==========================================
-// CREAR ESPACIO (SOLO ADMINISTRADORES)
+// CREAR ESPACIO (ADMINISTRADOR / LABORATORISTA)
 // ==========================================
-router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
-  const { nom_esp, tipo, capacidad, bloque, piso, estado } = req.body;
+router.post('/', verificarToken, verificarRol(GESTION), async (req, res) => {
+  const nom_esp = (req.body.nom_esp || '').trim();
+  const { tipo, capacidad, bloque, piso, estado } = req.body;
 
   if (!nom_esp || !TIPOS.includes(tipo) || !capacidad) {
     return res.status(400).json({ error: 'Datos del espacio incompletos o inválidos.' });
+  }
+  if (nom_esp.length > 100) {
+    return res.status(400).json({ error: 'El nombre del espacio supera la longitud permitida.' });
+  }
+  if (!Number.isInteger(Number(capacidad)) || Number(capacidad) <= 0) {
+    return res.status(400).json({ error: 'La capacidad debe ser un número entero positivo.' });
   }
   if (!bloqueYPisoValidos(bloque, piso)) {
     return res.status(400).json({ error: 'Bloque o piso inválido para el espacio.' });
@@ -49,11 +58,16 @@ router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, re
 });
 
 // ==========================================
-// OBTENER TODOS LOS ESPACIOS (CUALQUIER USUARIO AUTENTICADO)
+// OBTENER TODOS LOS ESPACIOS (CUALQUIER USUARIO AUTENTICADO)  ?incluirInactivos=1
+// Sin el query param, solo devuelve espacios activos (para reservar, disponibilidad, etc).
 // ==========================================
 router.get('/', verificarToken, async (req, res) => {
+  const incluirInactivos = req.query.incluirInactivos === '1' || req.query.incluirInactivos === 'true';
   try {
-    const espacios = await prisma.espacio.findMany({ orderBy: { nom_esp: 'asc' } });
+    const espacios = await prisma.espacio.findMany({
+      where: incluirInactivos ? undefined : { activo: true },
+      orderBy: { nom_esp: 'asc' },
+    });
     res.json(espacios);
   } catch (error) {
     console.error(error);
@@ -62,14 +76,21 @@ router.get('/', verificarToken, async (req, res) => {
 });
 
 // ==========================================
-// EDITAR ESPACIO / ESTADO / MANTENIMIENTO (SOLO ADMINISTRADORES)
+// EDITAR ESPACIO / ESTADO / MANTENIMIENTO (ADMINISTRADOR / LABORATORISTA)
 // ==========================================
-router.put('/:id', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
+router.put('/:id', verificarToken, verificarRol(GESTION), async (req, res) => {
   const id_esp = Number(req.params.id);
-  const { nom_esp, tipo, capacidad, bloque, piso, estado } = req.body;
+  const { tipo, capacidad, bloque, piso, estado } = req.body;
+  const nom_esp = req.body.nom_esp !== undefined ? req.body.nom_esp.trim() : undefined;
 
+  if (nom_esp !== undefined && (!nom_esp || nom_esp.length > 100)) {
+    return res.status(400).json({ error: 'Nombre del espacio inválido.' });
+  }
   if (tipo !== undefined && !TIPOS.includes(tipo)) {
     return res.status(400).json({ error: 'Tipo de espacio inválido.' });
+  }
+  if (capacidad !== undefined && (!Number.isInteger(Number(capacidad)) || Number(capacidad) <= 0)) {
+    return res.status(400).json({ error: 'La capacidad debe ser un número entero positivo.' });
   }
   if (estado !== undefined && !ESTADOS.includes(estado)) {
     return res.status(400).json({ error: 'Estado de espacio inválido.' });
@@ -110,25 +131,24 @@ router.put('/:id', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, 
 });
 
 // ==========================================
-// ELIMINAR ESPACIO (SOLO ADMINISTRADORES)
+// HABILITAR / DESHABILITAR ESPACIO (ADMINISTRADOR / LABORATORISTA)
+// No se elimina: un espacio deshabilitado deja de ofrecerse para reservar.
 // ==========================================
-router.delete('/:id', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, res) => {
+router.patch('/:id/estado', verificarToken, verificarRol(GESTION), async (req, res) => {
   const id_esp = Number(req.params.id);
+  const { activo } = req.body;
+
+  if (typeof activo !== 'boolean') {
+    return res.status(400).json({ error: 'Falta indicar el nuevo estado (activo).' });
+  }
 
   try {
-    await prisma.espacio.delete({ where: { id_esp } });
-    res.json({ mensaje: 'Espacio eliminado' });
+    const actualizado = await prisma.espacio.update({ where: { id_esp }, data: { activo } });
+    res.json({ mensaje: activo ? 'Espacio habilitado' : 'Espacio deshabilitado', espacio: actualizado });
   } catch (error) {
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Espacio no encontrado.' });
-    }
-    if (error.code === 'P2003') {
-      return res
-        .status(409)
-        .json({ error: 'No se puede eliminar: el espacio tiene reservas u horarios asociados.' });
-    }
+    if (error.code === 'P2025') return res.status(404).json({ error: 'Espacio no encontrado.' });
     console.error(error);
-    res.status(500).json({ error: 'Error al eliminar el espacio.' });
+    res.status(500).json({ error: 'Error al cambiar el estado del espacio.' });
   }
 });
 
