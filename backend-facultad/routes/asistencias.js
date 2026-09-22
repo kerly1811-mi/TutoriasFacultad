@@ -109,6 +109,32 @@ router.delete('/manual/:id_rev/:id_est', verificarToken, verificarRol(['DOCENTE'
 });
 
 // ==========================================
+// MIS TUTORÍAS (ESTUDIANTE): a las que registró asistencia, con lo necesario
+// para mostrarlas y poder pedir después sus materiales.
+// ==========================================
+router.get('/mias', verificarToken, verificarRol(['ESTUDIANTE']), async (req, res) => {
+  try {
+    const asistencias = await prisma.asistencia.findMany({
+      where: { id_est: req.usuario.id },
+      include: {
+        reserva: {
+          include: {
+            espacio: { select: { nom_esp: true, tipo: true } },
+            solicitante: { select: { nombres: true, apellidos: true } },
+            paralelo: { select: { nom_par: true, materia: { select: { nom_mat: true } } } },
+          },
+        },
+      },
+      orderBy: { hora_registro: 'desc' },
+    });
+    res.json(asistencias);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener tus tutorías.' });
+  }
+});
+
+// ==========================================
 // VER ASISTENTES A UNA TUTORÍA (Para Docentes y Laboratoristas)
 // ==========================================
 router.get('/reserva/:id_rev', verificarToken, async (req, res) => {
