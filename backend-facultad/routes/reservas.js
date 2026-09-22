@@ -19,7 +19,7 @@ const incluir = {
       nivel: { select: { nom_niv: true, carrera: { select: { nom_car: true } } } },
     },
   },
-  _count: { select: { asistencias: true } },
+  _count: { select: { asistencias: true, documentos: true } },
 };
 
 // ==========================================
