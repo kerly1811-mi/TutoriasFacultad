@@ -56,18 +56,36 @@ router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, re
 });
 
 // ==========================================
-// LISTAR PARALELOS (CUALQUIER USUARIO AUTENTICADO)  ?id_niv=  ?id_doc=
+// LISTAR PARALELOS (CUALQUIER USUARIO AUTENTICADO)  ?id_niv=  ?id_doc=  ?id_car=
+//   ?conHorarios=1 -> incluye el horario semanal de cada paralelo y cuántos
+//   estudiantes tiene matriculados (oferta para la automatrícula / "Mis clases").
 // ==========================================
 router.get('/', verificarToken, async (req, res) => {
-  const { id_niv, id_doc } = req.query;
+  const { id_niv, id_doc, id_car, conHorarios } = req.query;
 
   try {
     const paralelos = await prisma.paralelo.findMany({
       where: {
         ...(id_niv && { id_niv: Number(id_niv) }),
         ...(id_doc && { id_doc: Number(id_doc) }),
+        ...(id_car && { nivel: { id_car: Number(id_car) } }),
       },
-      include: incluir,
+      include: {
+        ...incluir,
+        ...(conHorarios && {
+          horarios: {
+            select: {
+              id_hor: true,
+              dia_semana: true,
+              hora_ini: true,
+              hora_fin: true,
+              espacio: { select: { nom_esp: true } },
+            },
+            orderBy: [{ dia_semana: 'asc' }, { hora_ini: 'asc' }],
+          },
+          _count: { select: { matriculas: true } },
+        }),
+      },
       orderBy: { nom_par: 'asc' },
     });
     res.json(paralelos);

@@ -2,6 +2,7 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
 const { DIAS, aMinutos, esHoraValida, seSolapan } = require('../utils/tiempo');
+const { nombreCursoDe } = require('../utils/cursos');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -11,13 +12,58 @@ const GESTION = ['LABORATORISTA', 'ADMINISTRADOR'];
 const incluir = {
   espacio: { select: { nom_esp: true, tipo: true } },
   docente: { select: { nombres: true, apellidos: true } },
+  paralelo: {
+    select: {
+      id_par: true,
+      nom_par: true,
+      materia: { select: { nom_mat: true } },
+      nivel: { select: { nom_niv: true, carrera: { select: { nom_car: true } } } },
+    },
+  },
 };
+
+const incluirParaleloCompleto = {
+  materia: true,
+  nivel: { include: { carrera: true } },
+};
+
+// Si el bloque trae `id_par`, el curso y el docente salen del paralelo
+// (así no se escriben a mano ni quedan desalineados). Devuelve los datos a guardar
+// o { error }.
+async function datosDelBloque(body) {
+  const { id_esp, id_par, dia_semana, hora_ini, hora_fin } = body;
+  if (id_par) {
+    const paralelo = await prisma.paralelo.findUnique({
+      where: { id_par: Number(id_par) },
+      include: incluirParaleloCompleto,
+    });
+    if (!paralelo) return { error: 'Paralelo no encontrado.' };
+    return {
+      id_esp: Number(id_esp),
+      id_par: paralelo.id_par,
+      nombre_curso: nombreCursoDe(paralelo),
+      id_doc: paralelo.id_doc,
+      dia_semana,
+      hora_ini,
+      hora_fin,
+    };
+  }
+  return {
+    id_esp: Number(id_esp),
+    id_par: null,
+    nombre_curso: body.nombre_curso,
+    id_doc: body.id_doc ? Number(body.id_doc) : null,
+    dia_semana,
+    hora_ini,
+    hora_fin,
+  };
+}
 
 // Valida el cuerpo de un horario. Devuelve un string de error o null.
 function validar(body) {
-  const { id_esp, nombre_curso, dia_semana, hora_ini, hora_fin } = body;
-  if (!id_esp || !nombre_curso || !dia_semana || !hora_ini || !hora_fin) {
-    return 'Faltan datos obligatorios.';
+  const { id_esp, id_par, nombre_curso, dia_semana, hora_ini, hora_fin } = body;
+  if (!id_esp || !(id_par || nombre_curso) || !dia_semana || !hora_ini || !hora_fin) {
+    return 'Faltan datos obligatorios (aula, paralelo, día y horas).';
   }
   if (!DIAS.includes(dia_semana)) return 'Día de la semana inválido.';
   if (!esHoraValida(hora_ini) || !esHoraValida(hora_fin)) return 'Hora inválida (formato HH:MM).';
@@ -36,13 +82,16 @@ async function chocaConOtraClase({ id_esp, dia_semana, hora_ini, hora_fin }, exc
 }
 
 // ==========================================
-// LISTAR HORARIOS   ?espacio=ID
+// LISTAR HORARIOS   ?espacio=ID  ?id_par=ID
 // ==========================================
 router.get('/', verificarToken, async (req, res) => {
-  const { espacio } = req.query;
+  const { espacio, id_par } = req.query;
   try {
     const horarios = await prisma.horarioClase.findMany({
-      where: espacio ? { id_esp: Number(espacio) } : undefined,
+      where: {
+        ...(espacio && { id_esp: Number(espacio) }),
+        ...(id_par && { id_par: Number(id_par) }),
+      },
       include: incluir,
       orderBy: [{ dia_semana: 'asc' }, { hora_ini: 'asc' }],
     });
@@ -60,23 +109,13 @@ router.post('/', verificarToken, verificarRol(GESTION), async (req, res) => {
   const err = validar(req.body);
   if (err) return res.status(400).json({ error: err });
 
-  const { id_esp, nombre_curso, id_doc, dia_semana, hora_ini, hora_fin } = req.body;
-
   try {
-    if (await chocaConOtraClase({ id_esp, dia_semana, hora_ini, hora_fin })) {
+    const datos = await datosDelBloque(req.body);
+    if (datos.error) return res.status(404).json({ error: datos.error });
+    if (await chocaConOtraClase(datos)) {
       return res.status(409).json({ error: 'Ese horario se cruza con otra clase en la misma aula.' });
     }
-    const horario = await prisma.horarioClase.create({
-      data: {
-        id_esp: Number(id_esp),
-        nombre_curso,
-        id_doc: id_doc ? Number(id_doc) : null,
-        dia_semana,
-        hora_ini,
-        hora_fin,
-      },
-      include: incluir,
-    });
+    const horario = await prisma.horarioClase.create({ data: datos, include: incluir });
     res.status(201).json({ mensaje: 'Horario creado', horario });
   } catch (error) {
     console.error(error);
@@ -92,24 +131,13 @@ router.put('/:id', verificarToken, verificarRol(GESTION), async (req, res) => {
   const err = validar(req.body);
   if (err) return res.status(400).json({ error: err });
 
-  const { id_esp, nombre_curso, id_doc, dia_semana, hora_ini, hora_fin } = req.body;
-
   try {
-    if (await chocaConOtraClase({ id_esp, dia_semana, hora_ini, hora_fin }, id_hor)) {
+    const datos = await datosDelBloque(req.body);
+    if (datos.error) return res.status(404).json({ error: datos.error });
+    if (await chocaConOtraClase(datos, id_hor)) {
       return res.status(409).json({ error: 'Ese horario se cruza con otra clase en la misma aula.' });
     }
-    const horario = await prisma.horarioClase.update({
-      where: { id_hor },
-      data: {
-        id_esp: Number(id_esp),
-        nombre_curso,
-        id_doc: id_doc ? Number(id_doc) : null,
-        dia_semana,
-        hora_ini,
-        hora_fin,
-      },
-      include: incluir,
-    });
+    const horario = await prisma.horarioClase.update({ where: { id_hor }, data: datos, include: incluir });
     res.json({ mensaje: 'Horario actualizado', horario });
   } catch (error) {
     if (error.code === 'P2025') return res.status(404).json({ error: 'Horario no encontrado.' });

@@ -64,6 +64,16 @@ app.get('/api/status/',async (req,res) =>{
     }
     });
 
-app.listen(PORT, () =>{
+// Express 5 pasa al callback el error de arranque (p. ej. puerto ocupado): sin revisarlo,
+// se imprimía "Servidor escuchado" y el proceso terminaba sin avisar.
+app.listen(PORT, (error) =>{
+    if (error) {
+        if (error.code === 'EADDRINUSE') {
+            console.error(`El puerto ${PORT} ya está en uso: probablemente el backend ya está corriendo en otra terminal. Ciérralo o usa otro puerto (PORT en .env).`);
+        } else {
+            console.error('No se pudo iniciar el servidor:', error);
+        }
+        process.exit(1);
+    }
     console.log(`Servidor escychado en el puerto ${PORT} - localhost:${PORT}/api/status/`);
 });

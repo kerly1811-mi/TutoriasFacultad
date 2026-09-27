@@ -17,6 +17,18 @@
 //   rol:     LABORATORISTA
 //   clave:   secret123 (hasheada con bcryptjs, igual que el resto del proyecto)
 //
+//   cédula:  1800000026
+//   correo:  test.docente@uta.edu.ec
+//   nombre:  Docente Test
+//   rol:     DOCENTE
+//   clave:   secret123 (hasheada con bcryptjs, igual que el resto del proyecto)
+//
+//   cédula:  1800000034
+//   correo:  test.estudiante@uta.edu.ec
+//   nombre:  Estudiante Test
+//   rol:     ESTUDIANTE
+//   clave:   secret123 (hasheada con bcryptjs, igual que el resto del proyecto)
+//
 // El borrado respeta el orden de FKs del schema.prisma: primero las tablas
 // "hoja" (sin nada que dependa de ellas) y al final Usuario.
 //
@@ -54,6 +66,26 @@ const LABORATORISTA = {
 };
 const LABORATORISTA_PASSWORD = 'secret123';
 
+const DOCENTE = {
+  cedula: '1800000026',
+  correo: 'test.docente@uta.edu.ec',
+  nombres: 'Docente',
+  apellidos: 'Test',
+  rol: 'DOCENTE',
+};
+
+const ESTUDIANTE = {
+  cedula: '1800000034',
+  correo: 'test.estudiante@uta.edu.ec',
+  nombres: 'Estudiante',
+  apellidos: 'Test',
+  rol: 'ESTUDIANTE',
+};
+
+// Usuarios de prueba (además del admin y el laboratorista) que el reset conserva.
+const USUARIOS_PRUEBA = [DOCENTE, ESTUDIANTE];
+const USUARIOS_PRUEBA_PASSWORD = 'secret123';
+
 async function main() {
   const confirmado = process.argv.includes('--si-estoy-seguro');
 
@@ -61,8 +93,9 @@ async function main() {
     console.log('====================================================================');
     console.log('MODO SIMULACIÓN (no se borró nada).');
     console.log('Este script borra TODA la base de datos excepto el usuario admin');
-    console.log(`(cédula ${ADMIN.cedula} / ${ADMIN.correo}) y el usuario laboratorista`);
-    console.log(`(cédula ${LABORATORISTA.cedula} / ${LABORATORISTA.correo}).`);
+    console.log(`(cédula ${ADMIN.cedula} / ${ADMIN.correo}), el usuario laboratorista`);
+    console.log(`(cédula ${LABORATORISTA.cedula} / ${LABORATORISTA.correo}) y los usuarios de prueba`);
+    USUARIOS_PRUEBA.forEach((u) => console.log(`  ${u.rol}: cédula ${u.cedula} / ${u.correo}`));
     console.log('Para ejecutarlo de verdad:');
     console.log('  node prisma/reset-datos.js --si-estoy-seguro');
     console.log('====================================================================');
@@ -112,8 +145,8 @@ async function main() {
   // Todos los Usuario menos el admin y el laboratorista que se conservan.
   const usuariosBorrados = await prisma.usuario.deleteMany({
     where: {
-      cedula: { notIn: [ADMIN.cedula, LABORATORISTA.cedula] },
-      correo: { notIn: [ADMIN.correo, LABORATORISTA.correo] },
+      cedula: { notIn: [ADMIN.cedula, LABORATORISTA.cedula, ...USUARIOS_PRUEBA.map((u) => u.cedula)] },
+      correo: { notIn: [ADMIN.correo, LABORATORISTA.correo, ...USUARIOS_PRUEBA.map((u) => u.correo)] },
     },
   });
   console.log(`Usuario: ${usuariosBorrados.count} filas borradas (se conservó/creó el admin y el laboratorista).`);
@@ -165,10 +198,34 @@ async function main() {
     },
   });
   console.log(`Laboratorista conservado/creado: id_usr=${laboratorista.id_usr}, ${laboratorista.nombres} ${laboratorista.apellidos} (${laboratorista.correo}).`);
+
+  // Crea o actualiza los usuarios de prueba (docente y estudiante) que se conservan.
+  await crearUsuariosPrueba();
   console.log('Listo.');
 }
 
-main()
+async function crearUsuariosPrueba() {
+  const hashedPassword = await bcrypt.hash(USUARIOS_PRUEBA_PASSWORD, await bcrypt.genSalt(10));
+  for (const u of USUARIOS_PRUEBA) {
+    const usuario = await prisma.usuario.upsert({
+      where: { correo: u.correo },
+      update: { nombres: u.nombres, apellidos: u.apellidos, cedula: u.cedula, rol: u.rol, activo: true },
+      create: { ...u, password: hashedPassword, activo: true },
+    });
+    console.log(`${u.rol} de prueba conservado/creado: id_usr=${usuario.id_usr}, ${usuario.correo}.`);
+  }
+}
+
+// `node prisma/reset-datos.js --solo-usuarios-prueba` crea/actualiza solo el docente y el
+// estudiante de prueba, sin borrar nada (útil si la base ya tiene datos cargados).
+if (process.argv.includes('--solo-usuarios-prueba')) {
+  crearUsuariosPrueba()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(() => prisma.$disconnect());
+} else main()
   .catch((e) => {
     console.error(e);
     process.exit(1);
