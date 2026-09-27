@@ -1,12 +1,20 @@
 const express = require('express');
 const crypto = require('crypto');
-const { PrismaClient } = require('@prisma/client');
 const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
-const { aMinutos, aHoraUTC, esHoraValida, seSolapan, diaSemanaDe, fechaBonita, horaTxt } = require('../utils/tiempo');
+const {
+  aMinutos,
+  aHoraUTC,
+  esHoraValida,
+  seSolapan,
+  diaSemanaDe,
+  fechaBonita,
+  horaTxt,
+  errorDeJornada,
+} = require('../utils/tiempo');
 const { crearNotificacion } = require('./notificaciones');
 
 const router = express.Router();
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const incluir = {
   espacio: { select: { nom_esp: true, tipo: true } },
@@ -56,6 +64,8 @@ router.post('/', verificarToken, verificarRol(['DOCENTE', 'LABORATORISTA']), asy
   if (new Date(`${fecha}T00:00:00.000Z`) < new Date(new Date().toISOString().slice(0, 10))) {
     return res.status(400).json({ error: 'La fecha no puede ser anterior a hoy.' });
   }
+  const errorJornada = errorDeJornada({ fecha, hora_ini: hor_ini, hora_fin: hor_fin });
+  if (errorJornada) return res.status(400).json({ error: errorJornada });
 
   try {
     const espacio = await prisma.espacio.findUnique({ where: { id_esp: Number(id_esp) } });
@@ -150,6 +160,8 @@ router.put('/:id', verificarToken, verificarRol(['DOCENTE', 'LABORATORISTA']), a
   if (new Date(`${fecha}T00:00:00.000Z`) < new Date(new Date().toISOString().slice(0, 10))) {
     return res.status(400).json({ error: 'La fecha no puede ser anterior a hoy.' });
   }
+  const errorJornada = errorDeJornada({ fecha, hora_ini: hor_ini, hora_fin: hor_fin });
+  if (errorJornada) return res.status(400).json({ error: errorJornada });
 
   try {
     const reserva = await prisma.reserva.findUnique({ where: { id_rev } });

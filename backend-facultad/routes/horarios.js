@@ -1,11 +1,10 @@
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
 const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
-const { DIAS, aMinutos, esHoraValida, seSolapan } = require('../utils/tiempo');
+const { DIAS, aMinutos, esHoraValida, seSolapan, errorDeJornada } = require('../utils/tiempo');
 const { nombreCursoDe } = require('../utils/cursos');
 
 const router = express.Router();
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const GESTION = ['LABORATORISTA', 'ADMINISTRADOR'];
 
@@ -68,7 +67,7 @@ function validar(body) {
   if (!DIAS.includes(dia_semana)) return 'Día de la semana inválido.';
   if (!esHoraValida(hora_ini) || !esHoraValida(hora_fin)) return 'Hora inválida (formato HH:MM).';
   if (aMinutos(hora_fin) <= aMinutos(hora_ini)) return 'La hora de fin debe ser posterior a la de inicio.';
-  return null;
+  return errorDeJornada({ dia: dia_semana, hora_ini, hora_fin });
 }
 
 // Choque con otra clase del mismo espacio y día (excluyendo `exceptoId`).

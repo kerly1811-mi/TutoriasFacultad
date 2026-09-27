@@ -1,11 +1,10 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { PrismaClient } = require('@prisma/client');
 const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
 const { cedulaValida, correoValido } = require('../utils/validadores');
 
 const router = express.Router();
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const ROLES_VALIDOS = ['ADMINISTRADOR', 'DOCENTE', 'ESTUDIANTE', 'LABORATORISTA'];
 

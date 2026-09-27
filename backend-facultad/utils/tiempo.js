@@ -53,4 +53,38 @@ function horaTxt(valor) {
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 }
 
-module.exports = { DIAS, aMinutos, aHoraUTC, esHoraValida, seSolapan, diaSemanaDe, fechaBonita, horaTxt };
+// Jornada de la facultad: lunes a viernes, de 07:00 a 20:00, con almuerzo de 13:00 a 14:00
+// (sin clases ni reservas). Devuelve el mensaje de error o null si la franja es válida.
+// Recibe `fecha` ("YYYY-MM-DD", reservas/solicitudes) o `dia` (LUNES..., horario de clases).
+const INICIO_JORNADA = 7 * 60;
+const FIN_JORNADA = 20 * 60;
+const ALMUERZO_INI = 13 * 60;
+const ALMUERZO_FIN = 14 * 60;
+
+function errorDeJornada({ fecha, dia, hora_ini, hora_fin }) {
+  const diaSemana = dia || (fecha && diaSemanaDe(fecha));
+  if (diaSemana === 'SABADO' || diaSemana === 'DOMINGO') {
+    return 'Sábado y domingo no hay actividades en la facultad: elige un día de lunes a viernes.';
+  }
+  const ini = aMinutos(hora_ini);
+  const fin = aMinutos(hora_fin);
+  if (ini < INICIO_JORNADA || fin > FIN_JORNADA) {
+    return 'La jornada de la facultad es de 07:00 a 20:00.';
+  }
+  if (seSolapan(ini, fin, ALMUERZO_INI, ALMUERZO_FIN)) {
+    return 'De 13:00 a 14:00 es hora de almuerzo: no se programan clases ni reservas.';
+  }
+  return null;
+}
+
+module.exports = {
+  DIAS,
+  aMinutos,
+  aHoraUTC,
+  esHoraValida,
+  seSolapan,
+  diaSemanaDe,
+  fechaBonita,
+  horaTxt,
+  errorDeJornada,
+};

@@ -1,10 +1,9 @@
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
 const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
 const { aMinutos, seSolapan } = require('../utils/tiempo');
 
 const router = express.Router();
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Un estudiante puede estar matriculado como máximo en 5 materias a la vez.
 const MAX_MATERIAS_POR_ESTUDIANTE = 5;
