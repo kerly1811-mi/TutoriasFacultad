@@ -1,9 +1,8 @@
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
 const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const TIPOS = ['AULA', 'LABORATORIO'];
 const ESTADOS = ['DISPONIBLE', 'MANTENIMIENTO'];

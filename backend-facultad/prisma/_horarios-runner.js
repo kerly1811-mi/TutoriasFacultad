@@ -9,6 +9,7 @@
 
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const { enlazarHorariosConParalelos } = require('./enlazar-horarios-paralelos');
 
 const prisma = new PrismaClient();
 const PASSWORD_DOCENTES = 'secret123';
@@ -161,6 +162,9 @@ async function runSeedHorarios(DATA, { label }) {
     horariosCreados = count;
   }
   console.log(`HorarioClase: ${horariosCreados} creados, ${horariosExistentes.length} ya existían, ${horariosOmitidos} omitidos (espacio no encontrado).`);
+
+  // ---------- 8. Enlazar cada HorarioClase con su Paralelo (id_par) ----------
+  await enlazarHorariosConParalelos(prisma);
 
   console.log(`=== Fin seed: ${label} ===\n`);
 }

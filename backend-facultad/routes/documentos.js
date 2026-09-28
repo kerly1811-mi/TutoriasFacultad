@@ -2,11 +2,10 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
-const { PrismaClient } = require('@prisma/client');
 const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const CARPETA_SUBIDAS = path.join(__dirname, '..', 'uploads', 'documentos');
 fs.mkdirSync(CARPETA_SUBIDAS, { recursive: true });

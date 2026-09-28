@@ -1,10 +1,9 @@
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
 const { verificarToken } = require('../middlewares/authMiddleware');
 const { aMinutos, esHoraValida, seSolapan, diaSemanaDe } = require('../utils/tiempo');
 
 const router = express.Router();
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // ==========================================
 // DISPONIBILIDAD DE AULAS
