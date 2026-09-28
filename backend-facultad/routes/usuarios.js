@@ -1,8 +1,9 @@
-const express = require('express');
+﻿const express = require('express');
 const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('@prisma/client');
 const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
 const { cedulaValida, correoValido } = require('../utils/validadores');
+const { enviarCredencialesNuevoUsuario } = require('../utils/mailer');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -16,7 +17,7 @@ router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, re
   const cedula = (req.body.cedula || '').trim();
   const nombres = (req.body.nombres || '').trim();
   const apellidos = (req.body.apellidos || '').trim();
-  const correo = (req.body.correo || '').trim();
+  const correo = (req.body.correo || '').trim().toLowerCase();
   const { password, rol } = req.body;
 
   if (!ROLES_VALIDOS.includes(rol)) {
@@ -49,7 +50,15 @@ router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, re
     const hashedPassword = await bcrypt.hash(password, await bcrypt.genSalt(10));
 
     const nuevo = await prisma.usuario.create({
-      data: { cedula, nombres, apellidos, correo, password: hashedPassword, rol },
+      data: { cedula, nombres, apellidos, correo, password: hashedPassword, rol, activo: true },
+    });
+
+    // Envío automático de credenciales al correo del nuevo usuario
+    const resultadoEnvio = await enviarCredencialesNuevoUsuario({
+      correo: nuevo.correo,
+      nombres: `${nuevo.nombres} ${nuevo.apellidos}`.trim(),
+      rol: nuevo.rol,
+      password,
     });
 
     res.status(201).json({
@@ -62,6 +71,7 @@ router.post('/', verificarToken, verificarRol(['ADMINISTRADOR']), async (req, re
         correo: nuevo.correo,
         rol: nuevo.rol,
       },
+      correoEnviado: resultadoEnvio.enviado,
     });
   } catch (error) {
     console.error(error);

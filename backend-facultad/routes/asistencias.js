@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
 
@@ -7,14 +7,13 @@ const prisma = new PrismaClient();
 
 // ==========================================
 // REGISTRAR ASISTENCIA (SIMULA EL ESCANEO DEL MÓVIL)
-// ==========================================
 // Permitimos que estudiantes (e incluso administradores para pruebas) registren asistencia
+// ==========================================
 router.post('/registrar', verificarToken, verificarRol(['ESTUDIANTE', 'ADMINISTRADOR']), async (req, res) => {
-  const id_estudiante = req.usuario.id; // Obtenemos el ID del estudiante desde su token JWT
+  const id_estudiante = req.usuario.id;
   const { qr_token } = req.body;
 
   try {
-    // 1. Buscar la reserva asociada a ese código QR exacto
     const reserva = await prisma.reserva.findUnique({
       where: { qr_token }
     });
@@ -23,7 +22,6 @@ router.post('/registrar', verificarToken, verificarRol(['ESTUDIANTE', 'ADMINISTR
       return res.status(404).json({ error: 'Código QR inválido o tutoría no encontrada.' });
     }
 
-    // 2. Registrar la asistencia vinculando al estudiante con la reserva
     const nuevaAsistencia = await prisma.asistencia.create({
       data: {
         id_rev: reserva.id_rev,
@@ -39,7 +37,6 @@ router.post('/registrar', verificarToken, verificarRol(['ESTUDIANTE', 'ADMINISTR
 
   } catch (error) {
     console.error(error);
-    // Prisma arroja el código P2002 cuando se viola una restricción única (@@unique en nuestro schema)
     if (error.code === 'P2002') {
       return res.status(400).json({ error: 'Ya registraste tu asistencia para esta tutoría previamente.' });
     }
@@ -48,9 +45,10 @@ router.post('/registrar', verificarToken, verificarRol(['ESTUDIANTE', 'ADMINISTR
 });
 
 // ==========================================
-// REGISTRO MANUAL (DOCENTE dueño de la reserva marca a un estudiante presente)
+// REGISTRO MANUAL DE ASISTENCIA
+// Docente dueño de la tutoría, laboratorista o administrador
 // ==========================================
-router.post('/manual', verificarToken, verificarRol(['DOCENTE']), async (req, res) => {
+router.post('/manual', verificarToken, verificarRol(['DOCENTE', 'LABORATORISTA', 'ADMINISTRADOR']), async (req, res) => {
   const { id_rev, id_est } = req.body;
   if (!id_rev || !id_est) {
     return res.status(400).json({ error: 'Faltan datos (reserva y estudiante).' });
@@ -59,7 +57,8 @@ router.post('/manual', verificarToken, verificarRol(['DOCENTE']), async (req, re
   try {
     const reserva = await prisma.reserva.findUnique({ where: { id_rev: Number(id_rev) } });
     if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada.' });
-    if (reserva.id_usr_solicitante !== req.usuario.id) {
+
+    if (req.usuario.rol === 'DOCENTE' && reserva.id_usr_solicitante !== req.usuario.id) {
       return res.status(403).json({ error: 'No puedes registrar asistencia en esta tutoría.' });
     }
 
@@ -84,16 +83,17 @@ router.post('/manual', verificarToken, verificarRol(['DOCENTE']), async (req, re
 });
 
 // ==========================================
-// QUITAR REGISTRO MANUAL (por si el docente se equivoca al marcar)
+// QUITAR REGISTRO MANUAL DE ASISTENCIA
 // ==========================================
-router.delete('/manual/:id_rev/:id_est', verificarToken, verificarRol(['DOCENTE']), async (req, res) => {
+router.delete('/manual/:id_rev/:id_est', verificarToken, verificarRol(['DOCENTE', 'LABORATORISTA', 'ADMINISTRADOR']), async (req, res) => {
   const id_rev = Number(req.params.id_rev);
   const id_est = Number(req.params.id_est);
 
   try {
     const reserva = await prisma.reserva.findUnique({ where: { id_rev } });
     if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada.' });
-    if (reserva.id_usr_solicitante !== req.usuario.id) {
+
+    if (req.usuario.rol === 'DOCENTE' && reserva.id_usr_solicitante !== req.usuario.id) {
       return res.status(403).json({ error: 'No puedes modificar la asistencia de esta tutoría.' });
     }
 
@@ -109,8 +109,7 @@ router.delete('/manual/:id_rev/:id_est', verificarToken, verificarRol(['DOCENTE'
 });
 
 // ==========================================
-// MIS TUTORÍAS (ESTUDIANTE): a las que registró asistencia, con lo necesario
-// para mostrarlas y poder pedir después sus materiales.
+// MIS TUTORÍAS (ESTUDIANTE)
 // ==========================================
 router.get('/mias', verificarToken, verificarRol(['ESTUDIANTE']), async (req, res) => {
   try {
@@ -135,14 +134,14 @@ router.get('/mias', verificarToken, verificarRol(['ESTUDIANTE']), async (req, re
 });
 
 // ==========================================
-// VER ASISTENTES A UNA TUTORÍA (Para Docentes y Laboratoristas)
+// VER ASISTENTES A UNA TUTORÍA (Docentes, Laboratoristas y Administradores)
 // ==========================================
 router.get('/reserva/:id_rev', verificarToken, async (req, res) => {
   const { id_rev } = req.params;
 
   try {
     const listado = await prisma.asistencia.findMany({
-      where: { id_rev: parseInt(id_rev) },
+      where: { id_rev: parseInt(id_rev, 10) },
       include: {
         estudiante: {
           select: { nombres: true, apellidos: true, cedula: true }

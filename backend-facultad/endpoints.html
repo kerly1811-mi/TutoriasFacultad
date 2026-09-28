@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Endpoints API - Gestión de Espacios FISEI</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 40px; color: #333; }
+        h1 { text-align: center; color: #1a365d; }
+        p { text-align: center; color: #666; margin-bottom: 30px; }
+        table { width: 100%; border-collapse: collapse; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; font-size: 14px; }
+        th { background-color: #2b6cb0; color: white; text-transform: uppercase; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        .metodo { font-weight: bold; padding: 4px 8px; border-radius: 4px; color: white; display: inline-block; width: 45px; text-align: center; }
+        .get { background-color: #48bb78; }
+        .post { background-color: #ecc94b; color: #744210; }
+        .endpoint { font-family: monospace; background-color: #edf2f7; padding: 2px 6px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <h1>Documentación de Endpoints</h1>
+    <p>Sistema Web y Móvil para la Gestión y Reserva de Espacios - FISEI</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Método</th>
+                <th>Endpoint</th>
+                <th>Descripción</th>
+                <th>Seguridad (Roles)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><span class="metodo get">GET</span></td>
+                <td><span class="endpoint">/api/status</span></td>
+                <td>Verifica el estado del servidor y base de datos.</td>
+                <td>Público</td>
+            </tr>
+            <tr>
+                <td><span class="metodo post">POST</span></td>
+                <td><span class="endpoint">/api/auth/registro</span></td>
+                <td>Registra un nuevo usuario y encripta su contraseña.</td>
+                <td>Público</td>
+            </tr>
+            <tr>
+                <td><span class="metodo post">POST</span></td>
+                <td><span class="endpoint">/api/auth/login</span></td>
+                <td>Valida credenciales y devuelve el token JWT de sesión.</td>
+                <td>Público</td>
+            </tr>
+            <tr>
+                <td><span class="metodo get">GET</span></td>
+                <td><span class="endpoint">/api/espacios</span></td>
+                <td>Consulta la lista completa de aulas y laboratorios.</td>
+                <td>Cualquier usuario autenticado</td>
+            </tr>
+            <tr>
+                <td><span class="metodo post">POST</span></td>
+                <td><span class="endpoint">/api/espacios</span></td>
+                <td>Crea un nuevo espacio en la facultad.</td>
+                <td>ADMINISTRADOR</td>
+            </tr>
+            <tr>
+                <td><span class="metodo get">GET</span></td>
+                <td><span class="endpoint">/api/reservas</span></td>
+                <td>Consulta la disponibilidad y listado de tutorías.</td>
+                <td>Cualquier usuario autenticado</td>
+            </tr>
+            <tr>
+                <td><span class="metodo post">POST</span></td>
+                <td><span class="endpoint">/api/reservas</span></td>
+                <td>Solicita una tutoría y genera el token para el código QR.</td>
+                <td>Cualquier usuario autenticado</td>
+            </tr>
+            <tr>
+                <td><span class="metodo post">POST</span></td>
+                <td><span class="endpoint">/api/asistencias/registrar</span></td>
+                <td>Registra la asistencia enviando el token del código QR.</td>
+                <td>ESTUDIANTE, ADMINISTRADOR</td>
+            </tr>
+            <tr>
+                <td><span class="metodo get">GET</span></td>
+                <td><span class="endpoint">/api/asistencias/reserva/:id_rev</span></td>
+                <td>Muestra el listado de estudiantes que asistieron a la tutoría.</td>
+                <td>Cualquier usuario autenticado</td>
+            </tr>
+            <tr>
+                <td><span class="metodo post">POST</span></td>
+                <td><span class="endpoint">/api/documentos</span></td>
+                <td>Vincula el enlace de un documento a una tutoría específica.</td>
+                <td>DOCENTE, ADMINISTRADOR</td>
+            </tr>
+            <tr>
+                <td><span class="metodo get">GET</span></td>
+                <td><span class="endpoint">/api/documentos/reserva/:id_rev</span></td>
+                <td>Descarga el material compartido de una tutoría.</td>
+                <td>Docentes, Admins y Estudiantes que asistieron</td>
+            </tr>
+        </tbody>
+    </table>
+
+</body>
+</html>
