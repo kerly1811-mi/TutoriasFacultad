@@ -31,15 +31,14 @@ const incluir = {
 };
 
 // ==========================================
-// CREAR RESERVA / TUTORÍA (ADMINISTRADOR o DOCENTE)
+// CREAR RESERVA / TUTORÍA (LABORATORISTA o DOCENTE)
 // El docente reserva ligado a un paralelo suyo (id_par obligatorio para él).
 // El administrador puede reservar con motivo o asociando un paralelo.
 // Confirma al instante. Si el aula está ocupada, responde 409.
 // ==========================================
-router.post('/', verificarToken, verificarRol(['ADMINISTRADOR', 'DOCENTE']), async (req, res) => {
+router.post('/', verificarToken, verificarRol(['LABORATORISTA', 'DOCENTE']), async (req, res) => {
   const id_usr_solicitante = req.usuario.id;
   const esDocente = req.usuario.rol === 'DOCENTE';
-  const esAdmin = req.usuario.rol === 'ADMINISTRADOR';
   const { id_esp, fecha, hor_ini, hor_fin, motivo, id_par } = req.body;
 
   if (!id_esp || !fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
@@ -134,10 +133,10 @@ router.post('/', verificarToken, verificarRol(['ADMINISTRADOR', 'DOCENTE']), asy
 // ==========================================
 // EDITAR RESERVA (el docente dueño o administrador)
 // ==========================================
-router.put('/:id', verificarToken, verificarRol(['ADMINISTRADOR', 'DOCENTE']), async (req, res) => {
+router.put('/:id', verificarToken, verificarRol(['LABORATORISTA', 'DOCENTE']), async (req, res) => {
   const id_rev = Number(req.params.id);
   const esDocente = req.usuario.rol === 'DOCENTE';
-  const esAdmin = req.usuario.rol === 'ADMINISTRADOR';
+  const esLaboratorista = req.usuario.rol === 'LABORATORISTA';
   const { id_esp, fecha, hor_ini, hor_fin, motivo, id_par } = req.body;
 
   if (!id_esp || !fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
@@ -166,7 +165,7 @@ router.put('/:id', verificarToken, verificarRol(['ADMINISTRADOR', 'DOCENTE']), a
   try {
     const reserva = await prisma.reserva.findUnique({ where: { id_rev } });
     if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada.' });
-    if (reserva.id_usr_solicitante !== req.usuario.id && !esAdmin) {
+    if (reserva.id_usr_solicitante !== req.usuario.id && !esLaboratorista) {
       return res.status(403).json({ error: 'No tienes permisos para editar esta reserva.' });
     }
     if (reserva.estado === 'CANCELADA') {
@@ -256,7 +255,7 @@ router.get('/', verificarToken, async (req, res) => {
 });
 
 // ==========================================
-// CANCELAR RESERVA (el docente dueño o un administrador)
+// CANCELAR RESERVA (el docente dueño o un laboratorista)
 // ==========================================
 router.patch('/:id/cancelar', verificarToken, async (req, res) => {
   const id_rev = Number(req.params.id);
@@ -274,7 +273,7 @@ router.patch('/:id/cancelar', verificarToken, async (req, res) => {
     if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada.' });
 
     const esDueno = reserva.id_usr_solicitante === req.usuario.id;
-    const puedeCancelarCualquiera = ['ADMINISTRADOR'].includes(req.usuario.rol);
+    const puedeCancelarCualquiera = ['LABORATORISTA'].includes(req.usuario.rol);
     if (!esDueno && !puedeCancelarCualquiera) {
       return res.status(403).json({ error: 'No puedes cancelar esta reserva.' });
     }
@@ -303,11 +302,11 @@ router.patch('/:id/cancelar', verificarToken, async (req, res) => {
         )
       );
 
-      if (req.usuario.rol === 'ADMINISTRADOR' && reserva.id_usr_solicitante !== req.usuario.id) {
+      if (req.usuario.rol === 'LABORATORISTA' && reserva.id_usr_solicitante !== req.usuario.id) {
         await crearNotificacion({
           id_usr: reserva.id_usr_solicitante,
           tipo: 'RESERVA_CANCELADA',
-          mensaje: `El administrador canceló tu tutoría de ${materiaTxt} del ${cuandoTxt} en ${reserva.espacio?.nom_esp || 'el aula'}. Motivo: ${motivo.trim()}`,
+          mensaje: `El laboratorista canceló tu tutoría de ${materiaTxt} del ${cuandoTxt} en ${reserva.espacio?.nom_esp || 'el aula'}. Motivo: ${motivo.trim()}`,
         });
       }
     }
@@ -320,9 +319,9 @@ router.patch('/:id/cancelar', verificarToken, async (req, res) => {
 });
 
 // ==========================================
-// FINALIZAR TUTORÍA ANTES DE TIEMPO (docente dueño o administrador)
+// FINALIZAR TUTORÍA ANTES DE TIEMPO (docente dueño o laboratorista)
 // ==========================================
-router.patch('/:id/finalizar', verificarToken, verificarRol(['DOCENTE', 'ADMINISTRADOR']), async (req, res) => {
+router.patch('/:id/finalizar', verificarToken, verificarRol(['DOCENTE', 'LABORATORISTA']), async (req, res) => {
   const id_rev = Number(req.params.id);
   const { hora_fin } = req.body;
 
@@ -333,7 +332,7 @@ router.patch('/:id/finalizar', verificarToken, verificarRol(['DOCENTE', 'ADMINIS
   try {
     const reserva = await prisma.reserva.findUnique({ where: { id_rev } });
     if (!reserva) return res.status(404).json({ error: 'Reserva no encontrada.' });
-    if (reserva.id_usr_solicitante !== req.usuario.id && req.usuario.rol !== 'ADMINISTRADOR') {
+    if (reserva.id_usr_solicitante !== req.usuario.id && req.usuario.rol !== 'LABORATORISTA') {
       return res.status(403).json({ error: 'No puedes finalizar esta reserva.' });
     }
     if (reserva.estado === 'CANCELADA') {
