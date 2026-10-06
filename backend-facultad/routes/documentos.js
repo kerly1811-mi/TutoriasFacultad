@@ -6,6 +6,7 @@ const { verificarToken, verificarRol } = require('../middlewares/authMiddleware'
 
 const router = express.Router();
 const prisma = require('../lib/prisma');
+const { notificarDocumentoNuevo } = require('../utils/avisosTutoria');
 
 const CARPETA_SUBIDAS = path.join(__dirname, '..', 'uploads', 'documentos');
 fs.mkdirSync(CARPETA_SUBIDAS, { recursive: true });
@@ -52,6 +53,7 @@ router.post('/subir', verificarToken, verificarRol(['DOCENTE', 'ADMINISTRADOR'])
       },
     });
 
+    notificarDocumentoNuevo(nuevoDocumento.id_rev, nuevoDocumento.nom_archivo);
     res.status(201).json({ mensaje: 'Archivo subido correctamente.', documento: nuevoDocumento });
   } catch (error) {
     fs.unlink(req.file.path, () => {});
@@ -73,6 +75,7 @@ router.post('/', verificarToken, verificarRol(['DOCENTE', 'ADMINISTRADOR']), asy
     const nuevoDocumento = await prisma.documento.create({
       data: { id_rev: Number(id_rev), url_archivo, nom_archivo },
     });
+    notificarDocumentoNuevo(nuevoDocumento.id_rev, nuevoDocumento.nom_archivo);
     res.status(201).json({ mensaje: 'Documento compartido exitosamente.', documento: nuevoDocumento });
   } catch (error) {
     console.error(error);

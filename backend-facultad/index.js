@@ -5,6 +5,7 @@ require('dotenv').config();
 
 const app = express();
 const prisma = require('./lib/prisma');
+const { iniciarAvisosDeInicio } = require('./utils/avisosTutoria');
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
@@ -74,4 +75,5 @@ app.listen(PORT, (error) =>{
         process.exit(1);
     }
     console.log(`Servidor escychado en el puerto ${PORT} - localhost:${PORT}/api/status/`);
+    iniciarAvisosDeInicio();
 });

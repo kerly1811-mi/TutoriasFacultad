@@ -219,7 +219,7 @@ model Solicitud {
 model Notificacion {
   id_not    Int      @id @default(autoincrement())
   id_usr    Int // destinatario
-  tipo      String   @db.VarChar(40) // SOLICITUD_NUEVA | SOLICITUD_ACEPTADA | SOLICITUD_RECHAZADA
+  tipo      String   @db.VarChar(40) // SOLICITUD_NUEVA | SOLICITUD_ACEPTADA | SOLICITUD_RECHAZADA | RESERVA_CANCELADA | TUTORIA_INICIO | DOCUMENTO_NUEVO
   mensaje   String   @db.Text
   id_sol    Int?
   leida     Boolean  @default(false)
