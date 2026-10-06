@@ -3,6 +3,10 @@ const { verificarToken, verificarRol } = require('../middlewares/authMiddleware'
 
 const router = express.Router();
 const prisma = require('../lib/prisma');
+const { aMinutos, ahoraLocal, horaTxt, fechaBonita } = require('../utils/tiempo');
+
+// Minutos antes del inicio en los que ya se puede escanear el QR.
+const TOLERANCIA_ANTES_MIN = 15;
 
 // ==========================================
 // REGISTRAR ASISTENCIA (SIMULA EL ESCANEO DEL MÓVIL)
@@ -19,6 +23,36 @@ router.post('/registrar', verificarToken, verificarRol(['ESTUDIANTE', 'ADMINISTR
 
     if (!reserva) {
       return res.status(404).json({ error: 'Código QR inválido o tutoría no encontrada.' });
+    }
+
+    // El administrador puede registrar sin restricciones (pruebas); el estudiante, no.
+    if (req.usuario.rol === 'ESTUDIANTE') {
+      if (reserva.estado === 'CANCELADA') {
+        return res.status(409).json({ error: 'Esta tutoría fue cancelada.' });
+      }
+
+      if (reserva.id_par) {
+        const matricula = await prisma.matricula.findFirst({ where: { id_est: id_estudiante, id_par: reserva.id_par } });
+        if (!matricula) {
+          return res.status(403).json({ error: 'No estás matriculado en el curso de esta tutoría.' });
+        }
+      }
+
+      const { fecha: hoy, minutos: ahora } = ahoraLocal();
+      const fechaReserva = reserva.fecha.toISOString().slice(0, 10);
+      const ini = aMinutos(reserva.hor_ini);
+      const fin = aMinutos(reserva.hor_fin);
+      const rango = `${horaTxt(reserva.hor_ini)} a ${horaTxt(reserva.hor_fin)}`;
+
+      if (fechaReserva !== hoy) {
+        return res.status(409).json({ error: `Esta tutoría es el ${fechaBonita(reserva.fecha)}, de ${rango}. Solo puedes registrar asistencia ese día.` });
+      }
+      if (ahora < ini - TOLERANCIA_ANTES_MIN) {
+        return res.status(409).json({ error: `La tutoría aún no comienza (${rango}). Podrás escanear desde ${TOLERANCIA_ANTES_MIN} minutos antes.` });
+      }
+      if (ahora >= fin) {
+        return res.status(409).json({ error: `La tutoría ya terminó (${rango}).` });
+      }
     }
 
     const nuevaAsistencia = await prisma.asistencia.create({

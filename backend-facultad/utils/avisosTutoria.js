@@ -2,7 +2,7 @@
 // Se avisa a los estudiantes matriculados en el paralelo de la reserva.
 const prisma = require('../lib/prisma');
 const { crearNotificacion } = require('../routes/notificaciones');
-const { aMinutos, horaTxt, fechaBonita } = require('./tiempo');
+const { aMinutos, horaTxt, fechaBonita, ahoraLocal } = require('./tiempo');
 
 const INTERVALO_MS = 60 * 1000;
 
@@ -39,9 +39,7 @@ async function avisarMatriculados(reserva, tipo, mensaje, { soloAsistentes = fal
 
 // Revisa las tutorías de hoy que ya comenzaron y aún no terminan.
 async function avisarTutoriasEnCurso() {
-  const ahora = new Date();
-  const hoy = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`;
-  const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes();
+  const { fecha: hoy, minutos: minutosAhora } = ahoraLocal();
 
   const reservas = await prisma.reserva.findMany({
     where: {

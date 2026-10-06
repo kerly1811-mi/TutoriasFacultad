@@ -37,6 +37,14 @@ function diaSemanaDe(fechaStr) {
   return DIAS[d.getUTCDay()];
 }
 
+// Fecha ("YYYY-MM-DD") y minutos desde medianoche del reloj local del servidor, en la misma
+// convención "naive" con la que se guardan las horas de las reservas.
+function ahoraLocal() {
+  const d = new Date();
+  const fecha = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return { fecha, minutos: d.getHours() * 60 + d.getMinutes() };
+}
+
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 // "YYYY-MM-DD" o Date -> "16 sep 2026", para mensajes legibles (notificaciones).
@@ -86,5 +94,6 @@ module.exports = {
   diaSemanaDe,
   fechaBonita,
   horaTxt,
+  ahoraLocal,
   errorDeJornada,
 };
