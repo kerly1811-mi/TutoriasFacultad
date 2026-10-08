@@ -1,6 +1,6 @@
 const express = require('express');
 const { verificarToken, verificarRol } = require('../middlewares/authMiddleware');
-const { aMinutos, aHoraUTC, esHoraValida, seSolapan, diaSemanaDe, fechaBonita, errorDeJornada } = require('../utils/tiempo');
+const { aMinutos, aHoraUTC, esHoraValida, seSolapan, diaSemanaDe, fechaBonita, errorDeJornada, ahoraLocal } = require('../utils/tiempo');
 const { crearNotificacion } = require('./notificaciones');
 
 const router = express.Router();
@@ -41,7 +41,7 @@ router.post('/', verificarToken, verificarRol(['ESTUDIANTE']), async (req, res) 
   if (aMinutos(hor_fin) <= aMinutos(hor_ini)) {
     return res.status(400).json({ error: 'La hora de fin debe ser posterior a la de inicio.' });
   }
-  if (new Date(`${fecha}T00:00:00.000Z`) < new Date(new Date().toISOString().slice(0, 10))) {
+  if (fecha < ahoraLocal().fecha) {
     return res.status(400).json({ error: 'La fecha no puede ser anterior a hoy.' });
   }
   const errorJornada = errorDeJornada({ fecha, hora_ini: hor_ini, hora_fin: hor_fin });

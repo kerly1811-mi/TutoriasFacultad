@@ -10,6 +10,7 @@ const {
   fechaBonita,
   horaTxt,
   errorDeJornada,
+  ahoraLocal,
 } = require('../utils/tiempo');
 const { crearNotificacion } = require('./notificaciones');
 
@@ -60,7 +61,7 @@ router.post('/', verificarToken, verificarRol(['LABORATORISTA', 'DOCENTE']), asy
   if (fin <= ini) {
     return res.status(400).json({ error: 'La hora de fin debe ser posterior a la de inicio.' });
   }
-  if (new Date(`${fecha}T00:00:00.000Z`) < new Date(new Date().toISOString().slice(0, 10))) {
+  if (fecha < ahoraLocal().fecha) {
     return res.status(400).json({ error: 'La fecha no puede ser anterior a hoy.' });
   }
   const errorJornada = errorDeJornada({ fecha, hora_ini: hor_ini, hora_fin: hor_fin });
@@ -156,7 +157,7 @@ router.put('/:id', verificarToken, verificarRol(['LABORATORISTA', 'DOCENTE']), a
   if (fin <= ini) {
     return res.status(400).json({ error: 'La hora de fin debe ser posterior a la de inicio.' });
   }
-  if (new Date(`${fecha}T00:00:00.000Z`) < new Date(new Date().toISOString().slice(0, 10))) {
+  if (fecha < ahoraLocal().fecha) {
     return res.status(400).json({ error: 'La fecha no puede ser anterior a hoy.' });
   }
   const errorJornada = errorDeJornada({ fecha, hora_ini: hor_ini, hora_fin: hor_fin });

@@ -1,6 +1,8 @@
 const express = require('express');
 const { verificarToken } = require('../middlewares/authMiddleware');
 
+const { ahoraLocal } = require('../utils/tiempo');
+
 const router = express.Router();
 const prisma = require('../lib/prisma');
 
@@ -9,7 +11,8 @@ const prisma = require('../lib/prisma');
 // Reservas confirmadas de hoy en adelante: qué, dónde, cuándo y con quién.
 // ==========================================
 router.get('/', verificarToken, async (req, res) => {
-  const hoy = new Date(new Date().toISOString().slice(0, 10));
+  // Fecha local del servidor: con UTC, desde las 19:00 (Ecuador) "hoy" ya sería mañana.
+  const hoy = new Date(`${ahoraLocal().fecha}T00:00:00.000Z`);
 
   try {
     let idsParalelos = null; // null = sin restricción (cualquier rol distinto de ESTUDIANTE)
